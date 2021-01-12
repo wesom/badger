@@ -1,4 +1,4 @@
-package badger
+package dispatch
 
 import (
 	"testing"
@@ -14,7 +14,7 @@ func (s *SimpleRequest) Key() int {
 }
 
 func TestPump(t *testing.T) {
-	d := NewDispatcher(10, 1000)
+	d := NewDispatch(10, 1000)
 	d.Start()
 
 	for i := 0; i < 1000; i++ {

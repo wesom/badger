@@ -1,4 +1,4 @@
-package badger
+package dispatch
 
 import (
 	"errors"
@@ -8,8 +8,8 @@ import (
 	"github.com/wesom/badger/logging"
 )
 
-// Dispatcher dispatch message to diffrent handlers
-type Dispatcher struct {
+// Dispatch dispatch message to diffrent handlers
+type Dispatch struct {
 	Size       int
 	Partitions int
 	Queues     []chan Request
@@ -18,12 +18,12 @@ type Dispatcher struct {
 	exitFlag   int32
 }
 
-// NewDispatcher return a obj instance
-func NewDispatcher(parts, size int) *Dispatcher {
+// NewDispatch return a obj instance
+func NewDispatch(parts, size int) *Dispatch {
 	if parts < 1 {
 		panic("partitions must gather than zero")
 	}
-	d := &Dispatcher{
+	d := &Dispatch{
 		Size:       size,
 		Partitions: parts,
 		Queues:     make([]chan Request, parts),
@@ -37,7 +37,7 @@ func partition(key int, size int) int {
 }
 
 // Put task
-func (d *Dispatcher) Put(req Request) error {
+func (d *Dispatch) Put(req Request) error {
 	indexPartition := partition(req.Key(), d.Partitions)
 
 	if atomic.LoadInt32(&d.exitFlag) == 1 {
@@ -50,7 +50,7 @@ func (d *Dispatcher) Put(req Request) error {
 }
 
 // Start Workers
-func (d *Dispatcher) Start() {
+func (d *Dispatch) Start() {
 	for i := 0; i < d.Partitions; i++ {
 		d.Queues[i] = make(chan Request, d.Size)
 		d.wg.Add(1)
@@ -59,7 +59,7 @@ func (d *Dispatcher) Start() {
 }
 
 // Close Workers
-func (d *Dispatcher) Close() error {
+func (d *Dispatch) Close() error {
 	if !atomic.CompareAndSwapInt32(&d.exitFlag, 0, 1) {
 		return errors.New("close exitFlag")
 	}
@@ -74,7 +74,7 @@ func (d *Dispatcher) Close() error {
 	return nil
 }
 
-func (d *Dispatcher) handlePump(i int) {
+func (d *Dispatch) handlePump(i int) {
 	defer d.wg.Done()
 
 	queue := d.Queues[i]

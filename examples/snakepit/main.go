@@ -1,9 +1,19 @@
 package main
 
 import (
-	"github.com/wesom/badger/logging"
+	"log"
+
+	"github.com/wesom/badger"
 )
 
 func main() {
-	logging.Logger().Debug("server start ...")
+	service := badger.NewService()
+	service.Init(
+		badger.WithName("snakepit"),
+	)
+	log.Printf("service %s start ...", service.String())
+
+	if err := service.Run(); err != nil {
+		log.Fatal(err)
+	}
 }
