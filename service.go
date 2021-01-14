@@ -57,21 +57,15 @@ func (s *service) Run() error {
 	}
 
 	ch := make(chan os.Signal, 1)
-	signal.Notify(ch, syscall.SIGTERM, syscall.SIGINT, syscall.SIGQUIT, syscall.SIGKILL, syscall.SIGPIPE)
-
-	for {
-		select {
-		case sig := <-ch:
-			switch sig {
-			// ignore SIGPIPE
-			case syscall.SIGPIPE:
-			default:
-				logging.Logger().Infof("Receive [signal] %s", sig)
-				goto stop
-			}
-		}
+	if s.opts.Signal {
+		signal.Notify(ch, syscall.SIGTERM, syscall.SIGINT, syscall.SIGQUIT, syscall.SIGKILL)
 	}
 
-stop:
+	select {
+	case sig := <-ch:
+		logging.Logger().Infof("Receive [signal] %s", sig)
+	case <-s.opts.Context.Done():
+	}
+
 	return s.Stop()
 }
