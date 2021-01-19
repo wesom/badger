@@ -26,5 +26,5 @@ func TestPump(t *testing.T) {
 
 	time.Sleep(time.Second * 10)
 
-	d.Close()
+	d.Stop()
 }

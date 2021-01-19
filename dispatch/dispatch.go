@@ -50,16 +50,17 @@ func (d *Dispatch) Put(req Request) error {
 }
 
 // Start Workers
-func (d *Dispatch) Start() {
+func (d *Dispatch) Start() error {
 	for i := 0; i < d.Partitions; i++ {
 		d.Queues[i] = make(chan Request, d.Size)
 		d.wg.Add(1)
 		go d.handlePump(i)
 	}
+	return nil
 }
 
-// Close Workers
-func (d *Dispatch) Close() error {
+// Stop Workers
+func (d *Dispatch) Stop() error {
 	if !atomic.CompareAndSwapInt32(&d.exitFlag, 0, 1) {
 		return errors.New("close exitFlag")
 	}

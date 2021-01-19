@@ -6,7 +6,7 @@ import (
 	"time"
 )
 
-func TestServiceCancel(t *testing.T) {
+func TestServiceWithCancel(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 
 	service := NewService(
@@ -15,7 +15,7 @@ func TestServiceCancel(t *testing.T) {
 	)
 
 	go func() {
-		time.Sleep(5 * time.Second)
+		time.Sleep(15 * time.Second)
 		t.Log("shutdown service with context")
 		cancel()
 	}()
@@ -26,3 +26,13 @@ func TestServiceCancel(t *testing.T) {
 
 	t.Log("service stopped")
 }
+
+// func TestService(t *testing.T) {
+// 	service := NewService()
+
+// 	if err := service.Run(); err != nil {
+// 		t.Fatal(err)
+// 	}
+
+// 	t.Log("service stopped")
+// }

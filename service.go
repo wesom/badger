@@ -6,6 +6,8 @@ import (
 	"sync"
 	"syscall"
 
+	"github.com/wesom/badger/gate"
+
 	"github.com/wesom/badger/logging"
 )
 
@@ -17,16 +19,18 @@ var (
 
 type service struct {
 	opts Options
+	gate gate.Gate
 
 	once sync.Once
 }
 
 func newService(opts ...Option) Service {
 	options := newOptions(opts...)
-	service := new(service)
-	service.opts = options
+	svc := new(service)
+	svc.opts = options
+	svc.gate = gate.NewGate()
 
-	return service
+	return svc
 }
 
 func (s *service) Init(opts ...Option) {
@@ -44,10 +48,16 @@ func (s *service) Options() Options {
 }
 
 func (s *service) Start() error {
+	if err := s.gate.Start(); err != nil {
+		return err
+	}
 	return nil
 }
 
 func (s *service) Stop() error {
+	if err := s.gate.Stop(); err != nil {
+		return err
+	}
 	return nil
 }
 
@@ -63,8 +73,9 @@ func (s *service) Run() error {
 
 	select {
 	case sig := <-ch:
-		logging.Logger().Infof("Receive [signal] %s", sig)
+		logging.Logger().Infof("Receive signal %s", sig)
 	case <-s.opts.Context.Done():
+		logging.Logger().Info("Receive context done")
 	}
 
 	return s.Stop()
