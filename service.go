@@ -7,6 +7,7 @@ import (
 	"syscall"
 
 	"github.com/wesom/badger/gate"
+	"github.com/wesom/badger/gate/websocket"
 
 	"github.com/wesom/badger/logging"
 )
@@ -28,7 +29,7 @@ func newService(opts ...Option) Service {
 	options := newOptions(opts...)
 	svc := new(service)
 	svc.opts = options
-	svc.gate = gate.NewGate()
+	svc.gate = websocket.NewServer()
 
 	return svc
 }
