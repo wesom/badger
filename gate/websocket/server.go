@@ -8,7 +8,6 @@ import (
 
 	"github.com/gorilla/websocket"
 	"github.com/wesom/badger/gate"
-	"github.com/wesom/badger/logging"
 )
 
 var upgrader = websocket.Upgrader{
@@ -20,20 +19,10 @@ var upgrader = websocket.Upgrader{
 	},
 }
 
-func wsHandler(s *wsServer, w http.ResponseWriter, r *http.Request) {
-	conn, err := upgrader.Upgrade(w, r, nil)
-	if err != nil {
-		logging.Logger().Errorf("ws upgrade err %v", err)
-		return
-	}
-	connection := NewConnection(s.NextID(), conn)
-	connection.Start()
-}
-
 type wsServer struct {
-	options gate.Options
-	nextid  uint64
-	httpsrv *http.Server
+	options    gate.Options
+	totalConns uint64
+	httpsrv    *http.Server
 }
 
 var (
@@ -56,9 +45,7 @@ func NewServer(opts ...gate.Option) gate.Gate {
 	}
 
 	mux := http.NewServeMux()
-	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
-		wsHandler(s, w, r)
-	})
+	mux.HandleFunc("/", s.wsHandler)
 
 	s.httpsrv = &http.Server{
 		Handler: mux,
@@ -67,8 +54,19 @@ func NewServer(opts ...gate.Option) gate.Gate {
 	return s
 }
 
-func (s *wsServer) NextID() uint64 {
-	return atomic.AddUint64(&s.nextid, 1)
+func (s *wsServer) wsHandler(w http.ResponseWriter, r *http.Request) {
+	conn, err := upgrader.Upgrade(w, r, nil)
+	if err != nil {
+		// logger.Errorf("ws upgrade err %v", err)
+		return
+	}
+	connection := NewConnection(conn)
+	connection.Start()
+	atomic.AddUint64(&s.totalConns, 1)
+}
+
+func (s *wsServer) ConnCount() uint64 {
+	return s.totalConns
 }
 
 func (s *wsServer) Start() error {
@@ -77,11 +75,11 @@ func (s *wsServer) Start() error {
 		return err
 	}
 
-	logging.Logger().Infof("wsserver listening on %s", ln.Addr().String())
+	// logger.Infof("wsserver listening on %s", ln.Addr().String())
 
 	go func() {
 		if err := s.httpsrv.Serve(ln); err != http.ErrServerClosed {
-			logging.Logger().Errorf("wsserver serve failed: %v", err)
+			// logger.Errorf("wsserver serve failed: %v", err)
 		}
 	}()
 
@@ -90,11 +88,11 @@ func (s *wsServer) Start() error {
 
 func (s *wsServer) Stop() error {
 	if err := s.httpsrv.Shutdown(context.TODO()); err != nil {
-		logging.Logger().Errorf("wsserver shutdown failed: %v", err)
+		// logger.Errorf("wsserver shutdown failed: %v", err)
 		return err
 	}
 
-	logging.Logger().Info("wsserver stopped")
+	// logger.Info("wsserver stopped")
 
 	return nil
 }

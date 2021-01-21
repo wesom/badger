@@ -4,8 +4,6 @@ import (
 	"errors"
 	"sync"
 	"sync/atomic"
-
-	"github.com/wesom/badger/logging"
 )
 
 // Dispatch dispatch message to diffrent handlers
@@ -81,13 +79,13 @@ func (d *Dispatch) handlePump(i int) {
 	queue := d.Queues[i]
 	for {
 		select {
-		case req := <-queue:
-			logging.Logger().Debugf("queue[%d] running key %d", i, req.Key())
+		case <-queue:
+			// logger.Debugf("queue[%d] running key %d", i, req.Key())
 		case <-d.exitChan:
 			goto exit
 		}
 	}
 
 exit:
-	logging.Logger().Infof("quit handlePump [%d], abandon request: %d", i, len(queue))
+	// logger.Infof("quit handlePump [%d], abandon request: %d", i, len(queue))
 }

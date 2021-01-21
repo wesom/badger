@@ -8,14 +8,6 @@ import (
 
 	"github.com/wesom/badger/gate"
 	"github.com/wesom/badger/gate/websocket"
-
-	"github.com/wesom/badger/logging"
-)
-
-// Default Option
-var (
-	DefaultName    = "badger-service"
-	DefaultVersion = "latest"
 )
 
 type service struct {
@@ -49,6 +41,8 @@ func (s *service) Options() Options {
 }
 
 func (s *service) Start() error {
+	s.opts.Logger.Infof("service start")
+
 	if err := s.gate.Start(); err != nil {
 		return err
 	}
@@ -74,9 +68,9 @@ func (s *service) Run() error {
 
 	select {
 	case sig := <-ch:
-		logging.Logger().Infof("Receive signal %s", sig)
+		s.opts.Logger.Infof("received signal %s", sig)
 	case <-s.opts.Context.Done():
-		logging.Logger().Info("Receive context done")
+		s.opts.Logger.Infof("received context done")
 	}
 
 	return s.Stop()

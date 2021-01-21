@@ -1,6 +1,10 @@
 package badger
 
-import "context"
+import (
+	"context"
+
+	"github.com/wesom/badger/log"
+)
 
 // Option for service
 type Option func(*Options)
@@ -9,14 +13,22 @@ type Option func(*Options)
 type Options struct {
 	Name    string
 	Version string
+	Logger  log.Logger
 	Context context.Context
 	Signal  bool
 }
+
+// Default Option
+var (
+	DefaultName    = "badger-service"
+	DefaultVersion = "latest"
+)
 
 func newOptions(opts ...Option) Options {
 	opt := Options{
 		Name:    DefaultName,
 		Version: DefaultVersion,
+		Logger:  log.DefaultLogger,
 		Context: context.Background(),
 		Signal:  true,
 	}
@@ -39,6 +51,13 @@ func WithName(n string) Option {
 func WithVersion(v string) Option {
 	return func(o *Options) {
 		o.Version = v
+	}
+}
+
+// WithLogger sets a context for service
+func WithLogger(l log.Logger) Option {
+	return func(o *Options) {
+		o.Logger = l
 	}
 }
 

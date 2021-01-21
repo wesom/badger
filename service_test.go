@@ -15,7 +15,7 @@ func TestServiceWithCancel(t *testing.T) {
 	)
 
 	go func() {
-		time.Sleep(15 * time.Second)
+		time.Sleep(5 * time.Second)
 		t.Log("shutdown service with context")
 		cancel()
 	}()
