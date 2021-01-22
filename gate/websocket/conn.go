@@ -18,6 +18,7 @@ const (
 // Connection represents a client connection to websocket server
 type Connection struct {
 	SessionID string
+	belong    *wsServer
 	conn      *websocket.Conn
 	output    chan []byte
 	ctx       context.Context
@@ -27,10 +28,11 @@ type Connection struct {
 }
 
 // NewConnection return a new client connection
-func NewConnection(conn *websocket.Conn) *Connection {
+func NewConnection(conn *websocket.Conn, srv *wsServer) *Connection {
 	ctx, cancel := context.WithCancel(context.Background())
 	c := &Connection{
 		SessionID: uuid.New().String(),
+		belong:    srv,
 		conn:      conn,
 		output:    make(chan []byte, bufferedSize),
 		ctx:       ctx,
@@ -56,6 +58,7 @@ func (c *Connection) Start() {
 func (c *Connection) Close() {
 	c.once.Do(func() {
 		go func() {
+			c.belong.conns.Remove(c.SessionID)
 			c.cancel()
 			c.conn.Close()
 			c.wg.Wait()

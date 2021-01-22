@@ -10,7 +10,8 @@ type Gate interface {
 
 // Options for gate
 type Options struct {
-	Address string
+	Address  string
+	MaxConns int
 }
 
 // Option sets values in Options
@@ -20,5 +21,12 @@ type Option func(o *Options)
 func WithAddress(addr string) Option {
 	return func(o *Options) {
 		o.Address = addr
+	}
+}
+
+// WithMaxConns to limit connections
+func WithMaxConns(max int) Option {
+	return func(o *Options) {
+		o.MaxConns = max
 	}
 }
