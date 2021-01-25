@@ -6,13 +6,15 @@ import (
 	"sync"
 	"syscall"
 
+	"github.com/wesom/badger/dispatch"
 	"github.com/wesom/badger/gate"
 	"github.com/wesom/badger/gate/websocket"
 )
 
 type service struct {
-	opts Options
-	gate gate.Gate
+	opts     Options
+	gate     gate.Gate
+	dispatch dispatch.Dispatch
 
 	once sync.Once
 }
@@ -22,6 +24,7 @@ func newService(opts ...Option) Service {
 	svc := new(service)
 	svc.opts = options
 	svc.gate = websocket.NewServer()
+	svc.dispatch = dispatch.NewDispatcher()
 
 	return svc
 }
@@ -43,6 +46,10 @@ func (s *service) Options() Options {
 func (s *service) Start() error {
 	s.opts.Logger.Infof("service start")
 
+	if err := s.dispatch.Start(); err != nil {
+		return err
+	}
+
 	if err := s.gate.Start(); err != nil {
 		return err
 	}
@@ -51,6 +58,10 @@ func (s *service) Start() error {
 
 func (s *service) Stop() error {
 	if err := s.gate.Stop(); err != nil {
+		return err
+	}
+
+	if err := s.dispatch.Stop(); err != nil {
 		return err
 	}
 	return nil

@@ -14,7 +14,7 @@ type connMgr struct {
 	m *sync.Map
 }
 
-func NewConnMgr() *connMgr {
+func newConnMgr() *connMgr {
 	return &connMgr{
 		m: &sync.Map{},
 	}
@@ -23,7 +23,7 @@ func NewConnMgr() *connMgr {
 func (cmgr *connMgr) Count() int {
 	var count int
 	cmgr.m.Range(func(k, v interface{}) bool {
-		count += 1
+		count++
 		return true
 	})
 	return count
@@ -71,7 +71,8 @@ type wsServer struct {
 
 var (
 	// DefaultAddress to ws
-	DefaultAddress  = ":8000"
+	DefaultAddress = ":8000"
+	// DefaultMaxConns to limit max connections
 	DefaultMaxConns = 1024
 )
 
@@ -88,7 +89,7 @@ func NewServer(opts ...gate.Option) gate.Gate {
 
 	s := &wsServer{
 		options: options,
-		conns:   NewConnMgr(),
+		conns:   newConnMgr(),
 	}
 
 	mux := http.NewServeMux()
@@ -137,6 +138,8 @@ func (s *wsServer) Start() error {
 }
 
 func (s *wsServer) Stop() error {
+	s.conns.CloseAll()
+
 	if err := s.httpsrv.Shutdown(context.TODO()); err != nil {
 		// logger.Errorf("wsserver shutdown failed: %v", err)
 		return err
