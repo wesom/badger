@@ -74,7 +74,7 @@ var upgrader = websocket.Upgrader{
 
 type wsServer struct {
 	options gate.Options
-	conns   *connMgr
+	cmgr    *connMgr
 	httpsrv *http.Server
 }
 
@@ -98,7 +98,7 @@ func NewGate(opts ...gate.Option) gate.Gate {
 
 	s := &wsServer{
 		options: options,
-		conns:   newConnMgr(),
+		cmgr:    newConnMgr(),
 	}
 
 	mux := http.NewServeMux()
@@ -122,11 +122,10 @@ func (s *wsServer) wsHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	conn := NewConnection(wsconn, s)
 	conn.Start()
-	s.conns.Add(conn)
 }
 
 func (s *wsServer) ConnCount() int {
-	return s.conns.Count()
+	return s.cmgr.Count()
 }
 
 func (s *wsServer) Start() error {
@@ -147,7 +146,7 @@ func (s *wsServer) Start() error {
 }
 
 func (s *wsServer) Stop() error {
-	s.conns.CloseAll()
+	s.cmgr.CloseAll()
 
 	if err := s.httpsrv.Shutdown(context.TODO()); err != nil {
 		// logger.Errorf("wsserver shutdown failed: %v", err)

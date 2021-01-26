@@ -37,6 +37,7 @@ func NewConnection(conn *websocket.Conn, srv *wsServer) *Connection {
 		ctx:       ctx,
 		cancel:    cancel,
 	}
+	srv.cmgr.Add(c)
 	return c
 }
 
@@ -57,7 +58,7 @@ func (c *Connection) Start() {
 func (c *Connection) Close() {
 	c.once.Do(func() {
 		go func() {
-			c.belong.conns.Remove(c.SessionID)
+			c.belong.cmgr.Remove(c.SessionID)
 			c.cancel()
 			c.conn.Close()
 			c.wg.Wait()
