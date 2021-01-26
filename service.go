@@ -3,28 +3,34 @@ package badger
 import (
 	"os"
 	"os/signal"
-	"sync"
 	"syscall"
 
 	"github.com/wesom/badger/dispatch"
 	"github.com/wesom/badger/gate"
 	"github.com/wesom/badger/gate/websocket"
+	"github.com/wesom/badger/util/uid"
 )
 
 type service struct {
 	opts     Options
+	idgen    *uid.ID
 	gate     gate.Gate
 	dispatch dispatch.Dispatch
-
-	once sync.Once
 }
 
 func newService(opts ...Option) Service {
 	options := newOptions(opts...)
 	svc := new(service)
 	svc.opts = options
-	svc.gate = websocket.NewServer()
+
+	idgen := uid.New()
 	svc.dispatch = dispatch.NewDispatcher()
+	svc.gate = websocket.NewGate(
+		gate.WithUIDFunc(func() uint64 {
+			return idgen.Next()
+		}),
+	)
+	svc.idgen = idgen
 
 	return svc
 }

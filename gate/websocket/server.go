@@ -2,6 +2,7 @@ package websocket
 
 import (
 	"context"
+	"errors"
 	"net"
 	"net/http"
 	"sync"
@@ -11,47 +12,55 @@ import (
 )
 
 type connMgr struct {
-	m *sync.Map
+	mu    sync.RWMutex
+	conns map[uint64]*Connection
 }
 
 func newConnMgr() *connMgr {
 	return &connMgr{
-		m: &sync.Map{},
+		conns: make(map[uint64]*Connection),
 	}
 }
 
 func (cmgr *connMgr) Count() int {
-	var count int
-	cmgr.m.Range(func(k, v interface{}) bool {
-		count++
-		return true
-	})
-	return count
+	cmgr.mu.RLock()
+	defer cmgr.mu.RUnlock()
+	return len(cmgr.conns)
 }
 
 func (cmgr *connMgr) Add(conn *Connection) {
-	cmgr.m.Store(conn.SessionID, conn)
+	cmgr.mu.Lock()
+	defer cmgr.mu.Unlock()
+	cmgr.conns[conn.SessionID] = conn
 }
 
-func (cmgr *connMgr) Remove(id string) {
-	cmgr.m.Delete(id)
+func (cmgr *connMgr) Remove(id uint64) {
+	cmgr.mu.Lock()
+	defer cmgr.mu.Unlock()
+	delete(cmgr.conns, id)
 }
 
-func (cmgr *connMgr) Load(id string) (*Connection, bool) {
-	v, ok := cmgr.m.Load(id)
+func (cmgr *connMgr) Load(id uint64) (*Connection, error) {
+	cmgr.mu.RLock()
+	defer cmgr.mu.RUnlock()
+	conn, ok := cmgr.conns[id]
 	if ok {
-		return v.(*Connection), true
+		return conn, nil
 	}
-	return nil, false
+	return nil, errors.New("connection do not exist")
 }
 
 func (cmgr *connMgr) CloseAll() {
-	cmgr.m.Range(func(k, v interface{}) bool {
-		conn := v.(*Connection)
-		conn.Close()
-		cmgr.m.Delete(k)
-		return true
-	})
+	conns := make(map[uint64]*Connection)
+	cmgr.mu.Lock()
+	for id, conn := range cmgr.conns {
+		conns[id] = conn
+	}
+	cmgr.mu.Unlock()
+
+	for _, nconn := range conns {
+		nconn.Close()
+	}
 }
 
 var upgrader = websocket.Upgrader{
@@ -76,8 +85,8 @@ var (
 	DefaultMaxConns = 1024
 )
 
-// NewServer retrun a gate implement with websocket
-func NewServer(opts ...gate.Option) gate.Gate {
+// NewGate retrun a gate implement with websocket
+func NewGate(opts ...gate.Option) gate.Gate {
 	options := gate.Options{
 		Address:  DefaultAddress,
 		MaxConns: DefaultMaxConns,

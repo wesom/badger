@@ -5,7 +5,6 @@ import (
 	"net"
 	"sync"
 
-	"github.com/google/uuid"
 	"github.com/gorilla/websocket"
 )
 
@@ -17,7 +16,7 @@ const (
 
 // Connection represents a client connection to websocket server
 type Connection struct {
-	SessionID string
+	SessionID uint64
 	belong    *wsServer
 	conn      *websocket.Conn
 	output    chan []byte
@@ -31,7 +30,7 @@ type Connection struct {
 func NewConnection(conn *websocket.Conn, srv *wsServer) *Connection {
 	ctx, cancel := context.WithCancel(context.Background())
 	c := &Connection{
-		SessionID: uuid.New().String(),
+		SessionID: srv.options.UIDFn(),
 		belong:    srv,
 		conn:      conn,
 		output:    make(chan []byte, bufferedSize),
