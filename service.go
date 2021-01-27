@@ -23,14 +23,14 @@ func newService(opts ...Option) Service {
 	svc := new(service)
 	svc.opts = options
 
-	idgen := uid.New()
+	svc.idgen = uid.New()
 	svc.dispatch = dispatch.NewDispatcher()
 	svc.gate = websocket.NewGate(
 		gate.WithUIDFunc(func() uint64 {
-			return idgen.Next()
+			return svc.idgen.Next()
 		}),
+		gate.WithDisp(svc.dispatch),
 	)
-	svc.idgen = idgen
 
 	return svc
 }

@@ -14,6 +14,20 @@ const (
 	bufferedSize = 128
 )
 
+type wmessage struct {
+	Conn *Connection
+	data []byte
+	name string
+}
+
+func (m *wmessage) Key() uint64 {
+	return m.Conn.SessionID
+}
+
+func (m *wmessage) Name() string {
+	return m.name
+}
+
 // Connection represents a client connection to websocket server
 type Connection struct {
 	SessionID uint64
@@ -92,11 +106,19 @@ func (c *Connection) readLoop() {
 			// logger.Debugf("handleLoop quit clientId %s", c.SessionID)
 			return
 		default:
-			_, _, err := c.conn.ReadMessage()
+			_, data, err := c.conn.ReadMessage()
 			if err != nil {
 				// logger.Errorf("readMessage err: %s %v", c.SessionID, err)
 				return
 			}
+			if c.belong.options.Disp == nil {
+				return
+			}
+			msg := &wmessage{
+				Conn: c,
+				data: data,
+			}
+			c.belong.options.Disp.Delivery(msg)
 		}
 	}
 }

@@ -50,7 +50,7 @@ func (d *Dispatcher) Handle(protoname string, handler Handler) {
 
 // Delivery a task
 func (d *Dispatcher) Delivery(msg Message) error {
-	indexPartition := partition(msg.Key(), d.partitions)
+	indexPartition := partition(msg.Key(), len(d.queues))
 
 	if atomic.LoadInt32(&d.exitFlag) == 1 {
 		return errors.New("exiting")

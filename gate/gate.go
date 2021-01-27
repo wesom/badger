@@ -1,5 +1,9 @@
 package gate
 
+import (
+	"github.com/wesom/badger/dispatch"
+)
+
 // Gate is a gate server abstraction
 type Gate interface {
 	// Start the server
@@ -14,6 +18,7 @@ type UIDFunc func() uint64
 // Options for gate
 type Options struct {
 	UIDFn    UIDFunc
+	Disp     dispatch.Dispatch
 	Address  string
 	MaxConns int
 }
@@ -25,6 +30,13 @@ type Option func(o *Options)
 func WithUIDFunc(fn UIDFunc) Option {
 	return func(o *Options) {
 		o.UIDFn = fn
+	}
+}
+
+// WithDisp to publish message
+func WithDisp(d dispatch.Dispatch) Option {
+	return func(o *Options) {
+		o.Disp = d
 	}
 }
 
