@@ -6,10 +6,10 @@ import (
 )
 
 type SimpleRequest struct {
-	ID int
+	ID uint64
 }
 
-func (s *SimpleRequest) Key() int {
+func (s *SimpleRequest) Key() uint64 {
 	return s.ID
 }
 
@@ -23,7 +23,7 @@ func TestPump(t *testing.T) {
 
 	for i := 0; i < 1000; i++ {
 		simpleRequest := &SimpleRequest{
-			ID: i,
+			ID: uint64(i),
 		}
 		d.Delivery(simpleRequest)
 	}

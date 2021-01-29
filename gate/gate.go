@@ -1,6 +1,8 @@
 package gate
 
 import (
+	"github.com/wesom/badger/log"
+
 	"github.com/wesom/badger/dispatch"
 )
 
@@ -17,6 +19,7 @@ type UIDFunc func() uint64
 
 // Options for gate
 type Options struct {
+	Logger   log.Logger
 	UIDFn    UIDFunc
 	Disp     dispatch.Dispatch
 	Address  string
@@ -25,6 +28,13 @@ type Options struct {
 
 // Option sets values in Options
 type Option func(o *Options)
+
+// WithLogger set logger
+func WithLogger(l log.Logger) Option {
+	return func(o *Options) {
+		o.Logger = l
+	}
+}
 
 // WithUIDFunc to generate id
 func WithUIDFunc(fn UIDFunc) Option {

@@ -114,7 +114,7 @@ func NewGate(opts ...gate.Option) gate.Gate {
 func (s *wsServer) wsHandler(w http.ResponseWriter, r *http.Request) {
 	wsconn, err := upgrader.Upgrade(w, r, nil)
 	if err != nil {
-		// logger.Errorf("ws upgrade err %v", err)
+		s.options.Logger.Errorf("ws upgrade err %v", err)
 		return
 	}
 	if s.ConnCount() > s.options.MaxConns {
@@ -134,11 +134,11 @@ func (s *wsServer) Start() error {
 		return err
 	}
 
-	// logger.Infof("wsserver listening on %s", ln.Addr().String())
+	s.options.Logger.Infof("wsserver listening on %s", ln.Addr().String())
 
 	go func() {
 		if err := s.httpsrv.Serve(ln); err != http.ErrServerClosed {
-			// logger.Errorf("wsserver serve failed: %v", err)
+			s.options.Logger.Errorf("wsserver serve failed: %v", err)
 		}
 	}()
 
@@ -149,11 +149,11 @@ func (s *wsServer) Stop() error {
 	s.cmgr.CloseAll()
 
 	if err := s.httpsrv.Shutdown(context.TODO()); err != nil {
-		// logger.Errorf("wsserver shutdown failed: %v", err)
+		s.options.Logger.Errorf("wsserver shutdown failed: %v", err)
 		return err
 	}
 
-	// logger.Info("wsserver stopped")
+	s.options.Logger.Infof("wsserver stopped")
 
 	return nil
 }

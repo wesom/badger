@@ -4,37 +4,45 @@ import (
 	"errors"
 	"sync"
 	"sync/atomic"
-
-	"github.com/wesom/badger/log"
 )
 
 // Dispatcher dispatch message to diffrent handlers
 type Dispatcher struct {
-	size       int
-	partitions int
-	queues     []chan Message
-	wg         sync.WaitGroup
-	exitChan   chan int
-	exitFlag   int32
-	router     *Router
-	logger     log.Logger
+	options  Options
+	queues   []chan Message
+	wg       sync.WaitGroup
+	exitChan chan int
+	exitFlag int32
+	router   *Router
 }
 
 // Default Option
 var (
 	DefaultPartitions = 8
-	DefaultQueueSize  = 4096
+	DefaultQueueCap   = 4096
 )
 
 // NewDispatcher return a obj instance
-func NewDispatcher() Dispatch {
+func NewDispatcher(opts ...Option) Dispatch {
+	options := Options{
+		QueueCap:   DefaultQueueCap,
+		Partitions: DefaultPartitions,
+	}
+
+	for _, o := range opts {
+		o(&options)
+	}
+
+	queues := make([]chan Message, options.Partitions)
+	for i := 0; i < len(queues); i++ {
+		queues[i] = make(chan Message, options.QueueCap)
+	}
+
 	d := &Dispatcher{
-		size:       DefaultQueueSize,
-		partitions: DefaultPartitions,
-		queues:     make([]chan Message, DefaultPartitions),
-		exitChan:   make(chan int),
-		router:     newRouter(),
-		logger:     log.DefaultLogger,
+		options:  options,
+		queues:   queues,
+		exitChan: make(chan int),
+		router:   newRouter(),
 	}
 	return d
 }
@@ -63,8 +71,9 @@ func (d *Dispatcher) Delivery(msg Message) error {
 
 // Start Workers
 func (d *Dispatcher) Start() error {
-	for i := 0; i < d.partitions; i++ {
-		d.queues[i] = make(chan Message, d.size)
+	d.options.Logger.Infof("dipatcher start")
+
+	for i := 0; i < len(d.queues); i++ {
 		d.wg.Add(1)
 		go d.handlePump(i)
 	}
@@ -81,9 +90,12 @@ func (d *Dispatcher) Stop() error {
 
 	d.wg.Wait()
 
-	for i := 0; i < d.partitions; i++ {
+	for i := 0; i < len(d.queues); i++ {
 		close(d.queues[i])
 	}
+
+	d.options.Logger.Infof("dipatcher stopped")
+
 	return nil
 }
 
@@ -104,11 +116,11 @@ quitLoop:
 		select {
 		case msg := <-queue:
 			d.doHandle(msg)
-			d.logger.Debugf("queue[%d] running key %d", i, msg.Key())
+			d.options.Logger.Debugf("queue[%d] running key %d", i, msg.Key())
 		case <-d.exitChan:
 			break quitLoop
 		}
 	}
 
-	d.logger.Infof("quit handlePump [%d], abandon message: %d", i, len(queue))
+	d.options.Logger.Debugf("quit handlePump [%d], abandon message: %d", i, len(queue))
 }

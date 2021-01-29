@@ -103,12 +103,12 @@ func (c *Connection) readLoop() {
 	for {
 		select {
 		case <-c.ctx.Done():
-			// logger.Debugf("handleLoop quit clientId %s", c.SessionID)
+			c.belong.options.Logger.Debugf("handleLoop quit clientId %s", c.SessionID)
 			return
 		default:
 			_, data, err := c.conn.ReadMessage()
 			if err != nil {
-				// logger.Errorf("readMessage err: %s %v", c.SessionID, err)
+				c.belong.options.Logger.Errorf("readMessage err: %s %v", c.SessionID, err)
 				return
 			}
 			if c.belong.options.Disp == nil {
@@ -130,7 +130,7 @@ func (c *Connection) writeLoop() {
 	for {
 		select {
 		case <-c.ctx.Done():
-			// logger.Debugf("writeLoop quit clientId %s", c.SessionID)
+			c.belong.options.Logger.Debugf("writeLoop quit clientId %s", c.SessionID)
 			return
 		case buffer, ok := <-c.output:
 			if !ok {
@@ -138,7 +138,7 @@ func (c *Connection) writeLoop() {
 				return
 			}
 			if err := c.conn.WriteMessage(websocket.BinaryMessage, buffer); err != nil {
-				// logger.Errorf("wrapperwrite binary err %v", err)
+				c.belong.options.Logger.Errorf("wrapperwrite binary err %v", err)
 				return
 			}
 		}
