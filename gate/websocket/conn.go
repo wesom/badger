@@ -2,6 +2,7 @@ package websocket
 
 import (
 	"context"
+	"fmt"
 	"net"
 	"sync"
 
@@ -36,7 +37,8 @@ type Connection struct {
 	output    chan []byte
 	ctx       context.Context
 	cancel    context.CancelFunc
-	once      sync.Once
+	mu        sync.RWMutex
+	isClosed  bool
 	wg        sync.WaitGroup
 }
 
@@ -58,27 +60,25 @@ func NewConnection(conn *websocket.Conn, srv *wsServer) *Connection {
 // Start create goroutines for reading and writing
 func (c *Connection) Start() {
 	c.wg.Add(2)
-	go func() {
-		c.readLoop()
-		c.wg.Done()
-	}()
-	go func() {
-		c.writeLoop()
-		c.wg.Done()
-	}()
+	go c.readLoop()
+	go c.writeLoop()
 }
 
 // Close closes a client connection gracefully
 func (c *Connection) Close() {
-	c.once.Do(func() {
-		go func() {
-			c.belong.cmgr.Remove(c.SessionID)
-			c.cancel()
-			c.conn.Close()
-			c.wg.Wait()
-			close(c.output)
-		}()
-	})
+	go func() {
+		c.mu.Lock()
+		defer c.mu.Unlock()
+		if c.isClosed {
+			return
+		}
+		c.belong.cmgr.Remove(c.SessionID)
+		c.cancel()
+		c.conn.Close()
+		c.wg.Wait()
+		close(c.output)
+		c.isClosed = true
+	}()
 }
 
 // RemoteAddr return the remote address
@@ -91,12 +91,23 @@ func (c *Connection) LocalAddr() net.Addr {
 	return c.conn.LocalAddr()
 }
 
-func (c *Connection) Write(buffer []byte) {
-	c.output <- buffer
+func (c *Connection) Write(buffer []byte) error {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+	if c.isClosed {
+		return fmt.Errorf("write closed, session: %d ", c.SessionID)
+	}
+	select {
+	case c.output <- buffer:
+	default:
+		return fmt.Errorf("write full buffer, session: %d", c.SessionID)
+	}
+	return nil
 }
 
 func (c *Connection) readLoop() {
 	defer func() {
+		c.wg.Done()
 		c.Close()
 	}()
 	c.conn.SetReadLimit(maxMessageSize)
@@ -125,6 +136,7 @@ func (c *Connection) readLoop() {
 
 func (c *Connection) writeLoop() {
 	defer func() {
+		c.wg.Done()
 		c.Close()
 	}()
 	for {
