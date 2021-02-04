@@ -27,7 +27,7 @@ func newService(opts ...Option) Service {
 	svc.dispatch = dispatch.NewDispatcher(
 		dispatch.WithLogger(options.Logger),
 	)
-	svc.gate = websocket.NewGate(
+	svc.gate = websocket.NewWsServer(
 		gate.WithUIDFunc(func() uint64 {
 			return svc.idgen.Next()
 		}),

@@ -1,11 +1,27 @@
 package dispatch
 
 import (
+	"net"
+
 	"github.com/wesom/badger/log"
 )
 
+// Conn is a connection abstraction
+type Conn interface {
+	// ID return unique id
+	ID() uint64
+	// RemoteAddr return remote address
+	RemoteAddr() net.Addr
+	// Close the conn
+	Close()
+	// Write data to conn
+	Write([]byte) error
+}
+
 // Message Wrapper message data
 type Message interface {
+	Conn() Conn
+
 	Key() uint64
 
 	Name() string
@@ -22,11 +38,11 @@ type Dispatch interface {
 	Start() error
 	// Stop the server
 	Stop() error
-	// Delivery a request
-	Delivery(msg Message) error
+	// Put a message
+	Put(msg Message) error
 }
 
-// Options for gate
+// Options for dispatch
 type Options struct {
 	Logger     log.Logger
 	QueueCap   int

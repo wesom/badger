@@ -13,12 +13,12 @@ import (
 
 type connMgr struct {
 	mu    sync.RWMutex
-	conns map[uint64]*Connection
+	conns map[uint64]*WsConnection
 }
 
 func newConnMgr() *connMgr {
 	return &connMgr{
-		conns: make(map[uint64]*Connection),
+		conns: make(map[uint64]*WsConnection),
 	}
 }
 
@@ -28,10 +28,10 @@ func (cmgr *connMgr) Count() int {
 	return len(cmgr.conns)
 }
 
-func (cmgr *connMgr) Add(conn *Connection) {
+func (cmgr *connMgr) Add(conn *WsConnection) {
 	cmgr.mu.Lock()
 	defer cmgr.mu.Unlock()
-	cmgr.conns[conn.SessionID] = conn
+	cmgr.conns[conn.ID()] = conn
 }
 
 func (cmgr *connMgr) Remove(id uint64) {
@@ -40,7 +40,7 @@ func (cmgr *connMgr) Remove(id uint64) {
 	delete(cmgr.conns, id)
 }
 
-func (cmgr *connMgr) Load(id uint64) (*Connection, error) {
+func (cmgr *connMgr) Load(id uint64) (*WsConnection, error) {
 	cmgr.mu.RLock()
 	defer cmgr.mu.RUnlock()
 	conn, ok := cmgr.conns[id]
@@ -50,8 +50,8 @@ func (cmgr *connMgr) Load(id uint64) (*Connection, error) {
 	return nil, errors.New("connection do not exist")
 }
 
-func (cmgr *connMgr) CloseAll() {
-	conns := make(map[uint64]*Connection)
+func (cmgr *connMgr) Close() {
+	conns := make(map[uint64]*WsConnection)
 	cmgr.mu.Lock()
 	for id, conn := range cmgr.conns {
 		conns[id] = conn
@@ -72,7 +72,8 @@ var upgrader = websocket.Upgrader{
 	},
 }
 
-type wsServer struct {
+// WsServer represents an websocket server instance
+type WsServer struct {
 	options gate.Options
 	cmgr    *connMgr
 	httpsrv *http.Server
@@ -85,8 +86,8 @@ var (
 	DefaultMaxConns = 1024
 )
 
-// NewGate retrun a gate implement with websocket
-func NewGate(opts ...gate.Option) gate.Gate {
+// NewWsServer retrun a gate implement with websocket
+func NewWsServer(opts ...gate.Option) *WsServer {
 	options := gate.Options{
 		Address:  DefaultAddress,
 		MaxConns: DefaultMaxConns,
@@ -96,7 +97,7 @@ func NewGate(opts ...gate.Option) gate.Gate {
 		o(&options)
 	}
 
-	s := &wsServer{
+	s := &WsServer{
 		options: options,
 		cmgr:    newConnMgr(),
 	}
@@ -111,24 +112,26 @@ func NewGate(opts ...gate.Option) gate.Gate {
 	return s
 }
 
-func (s *wsServer) wsHandler(w http.ResponseWriter, r *http.Request) {
+func (s *WsServer) wsHandler(w http.ResponseWriter, r *http.Request) {
 	wsconn, err := upgrader.Upgrade(w, r, nil)
 	if err != nil {
 		s.options.Logger.Errorf("ws upgrade err %v", err)
 		return
 	}
-	if s.ConnCount() > s.options.MaxConns {
+	if s.Count() > s.options.MaxConns {
 		return
 	}
 	conn := NewConnection(wsconn, s)
 	conn.Start()
 }
 
-func (s *wsServer) ConnCount() int {
+// Count return connection count
+func (s *WsServer) Count() int {
 	return s.cmgr.Count()
 }
 
-func (s *wsServer) Start() error {
+// Start the server
+func (s *WsServer) Start() error {
 	ln, err := net.Listen("tcp", s.options.Address)
 	if err != nil {
 		return err
@@ -145,8 +148,9 @@ func (s *wsServer) Start() error {
 	return nil
 }
 
-func (s *wsServer) Stop() error {
-	s.cmgr.CloseAll()
+// Stop the server
+func (s *WsServer) Stop() error {
+	s.cmgr.Close()
 
 	if err := s.httpsrv.Shutdown(context.TODO()); err != nil {
 		s.options.Logger.Errorf("wsserver shutdown failed: %v", err)

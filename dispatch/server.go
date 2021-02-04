@@ -56,8 +56,8 @@ func (d *Dispatcher) Handle(protoname string, handler Handler) {
 	d.router.register(protoname, handler)
 }
 
-// Delivery a task
-func (d *Dispatcher) Delivery(msg Message) error {
+// Put a message
+func (d *Dispatcher) Put(msg Message) error {
 	indexPartition := partition(msg.Key(), len(d.queues))
 
 	if atomic.LoadInt32(&d.exitFlag) == 1 {
@@ -83,7 +83,7 @@ func (d *Dispatcher) Start() error {
 // Stop Workers
 func (d *Dispatcher) Stop() error {
 	if !atomic.CompareAndSwapInt32(&d.exitFlag, 0, 1) {
-		return errors.New("close exitFlag")
+		return errors.New("dispatch already exit")
 	}
 
 	close(d.exitChan)

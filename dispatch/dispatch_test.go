@@ -13,6 +13,10 @@ func (s *SimpleRequest) Key() uint64 {
 	return s.ID
 }
 
+func (s *SimpleRequest) Conn() Conn {
+	return nil
+}
+
 func (s *SimpleRequest) Name() string {
 	return "simple"
 }
@@ -25,7 +29,7 @@ func TestPump(t *testing.T) {
 		simpleRequest := &SimpleRequest{
 			ID: uint64(i),
 		}
-		d.Delivery(simpleRequest)
+		d.Put(simpleRequest)
 	}
 
 	time.Sleep(time.Second * 10)
