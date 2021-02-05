@@ -3,7 +3,8 @@ package dispatch
 import (
 	"errors"
 	"sync"
-	"sync/atomic"
+
+	"github.com/wesom/badger/log"
 )
 
 // Dispatcher dispatch message to diffrent handlers
@@ -11,8 +12,7 @@ type Dispatcher struct {
 	options  Options
 	queues   []chan Message
 	wg       sync.WaitGroup
-	exitChan chan int
-	exitFlag int32
+	exitChan chan struct{}
 	router   *Router
 }
 
@@ -20,6 +20,7 @@ type Dispatcher struct {
 var (
 	DefaultPartitions = 8
 	DefaultQueueCap   = 4096
+	DefaultLogger     = log.DefaultLogger
 )
 
 // NewDispatcher return a obj instance
@@ -27,6 +28,7 @@ func NewDispatcher(opts ...Option) Dispatch {
 	options := Options{
 		QueueCap:   DefaultQueueCap,
 		Partitions: DefaultPartitions,
+		Logger:     DefaultLogger,
 	}
 
 	for _, o := range opts {
@@ -41,7 +43,7 @@ func NewDispatcher(opts ...Option) Dispatch {
 	d := &Dispatcher{
 		options:  options,
 		queues:   queues,
-		exitChan: make(chan int),
+		exitChan: make(chan struct{}),
 		router:   newRouter(),
 	}
 	return d
@@ -58,13 +60,14 @@ func (d *Dispatcher) Handle(protoname string, handler Handler) {
 
 // Put a message
 func (d *Dispatcher) Put(msg Message) error {
-	indexPartition := partition(msg.Key(), len(d.queues))
+	index := partition(msg.Key(), len(d.queues))
 
-	if atomic.LoadInt32(&d.exitFlag) == 1 {
-		return errors.New("exiting")
+	select {
+	case <-d.exitChan:
+		return errors.New("dispatch exit")
+	default:
+		d.queues[index] <- msg
 	}
-
-	d.queues[indexPartition] <- msg
 
 	return nil
 }
@@ -82,10 +85,6 @@ func (d *Dispatcher) Start() error {
 
 // Stop Workers
 func (d *Dispatcher) Stop() error {
-	if !atomic.CompareAndSwapInt32(&d.exitFlag, 0, 1) {
-		return errors.New("dispatch already exit")
-	}
-
 	close(d.exitChan)
 
 	d.wg.Wait()
@@ -111,14 +110,17 @@ func (d *Dispatcher) handlePump(i int) {
 
 	queue := d.queues[i]
 
-quitLoop:
+loop:
 	for {
 		select {
-		case msg := <-queue:
+		case msg, ok := <-queue:
+			if !ok {
+				break loop
+			}
 			d.doHandle(msg)
 			d.options.Logger.Debugf("queue[%d] running key %d", i, msg.Key())
 		case <-d.exitChan:
-			break quitLoop
+			break loop
 		}
 	}
 

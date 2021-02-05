@@ -22,13 +22,14 @@ type Options struct {
 var (
 	DefaultName    = "badger-service"
 	DefaultVersion = "latest"
+	DefaultLogger  = log.DefaultLogger
 )
 
 func newOptions(opts ...Option) Options {
 	opt := Options{
 		Name:    DefaultName,
 		Version: DefaultVersion,
-		Logger:  log.DefaultLogger,
+		Logger:  DefaultLogger,
 		Context: context.Background(),
 		Signal:  true,
 	}
