@@ -6,37 +6,41 @@ import (
 
 type ConnMgr struct {
 	mu    sync.RWMutex
-	conns map[Conn]struct{}
+	conns map[uint64]*Connection
 }
 
 func NewConnMgr() *ConnMgr {
 	return &ConnMgr{
-		conns: make(map[Conn]struct{}),
+		conns: make(map[uint64]*Connection),
 	}
 }
 
-func (cmgr *ConnMgr) Count() int {
-	cmgr.mu.RLock()
-	defer cmgr.mu.RUnlock()
-	return len(cmgr.conns)
-}
-
-func (cmgr *ConnMgr) Add(conn Conn) {
+func (cmgr *ConnMgr) Add(conn *Connection) {
 	cmgr.mu.Lock()
 	defer cmgr.mu.Unlock()
-	cmgr.conns[conn] = struct{}{}
+	cmgr.conns[conn.ConnID()] = conn
 }
 
-func (cmgr *ConnMgr) Remove(conn Conn) {
+func (cmgr *ConnMgr) Remove(conn *Connection) {
 	cmgr.mu.Lock()
 	defer cmgr.mu.Unlock()
-	delete(cmgr.conns, conn)
+	delete(cmgr.conns, conn.ConnID())
+}
+
+func (cmgr *ConnMgr) Find(connID uint64) *Connection {
+	cmgr.mu.Lock()
+	defer cmgr.mu.Unlock()
+	v, ok := cmgr.conns[connID]
+	if ok {
+		return v
+	}
+	return nil
 }
 
 func (cmgr *ConnMgr) Close() {
 	cmgr.mu.Lock()
 	defer cmgr.mu.Unlock()
-	for conn := range cmgr.conns {
+	for _, conn := range cmgr.conns {
 		conn.Close()
 	}
 }

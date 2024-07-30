@@ -1,19 +1,15 @@
 package badger
 
-import "go.uber.org/zap"
+import (
+	"net"
+
+	"go.uber.org/zap"
+)
 
 type Option func(opts *Options)
 
 type Options struct {
-	MaxConn int
-	Logger  *zap.Logger
-	Handler EventHandler
-}
-
-func WithMaxConn(maxconn int) Option {
-	return func(opts *Options) {
-		opts.MaxConn = maxconn
-	}
+	Logger *zap.Logger
 }
 
 func WithLogger(l *zap.Logger) Option {
@@ -22,8 +18,8 @@ func WithLogger(l *zap.Logger) Option {
 	}
 }
 
-func WithEventHandler(h EventHandler) Option {
-	return func(opts *Options) {
-		opts.Handler = h
-	}
-}
+type onConnectFunc func(connID uint64, remoteAddr net.Addr) error
+type onTextMessageFunc func(connID uint64, data []byte)
+type onBinaryMessageFunc func(connID uint64, data []byte)
+type onErrorFunc func(connID uint64, e error)
+type onDisconnectFunc func(connID uint64)

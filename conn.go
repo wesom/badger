@@ -1,49 +1,39 @@
 package badger
 
 import (
-	"errors"
 	"net"
 	"sync"
 
+	"github.com/gorilla/websocket"
 	"go.uber.org/zap"
 )
 
-// Abstract connect
-type AbsConn interface {
-	ReadMessage() ([]byte, error)
-
-	WriteMessage(data []byte) error
-
-	Close() error
-
-	LocalAddr() net.Addr
-
-	RemoteAddr() net.Addr
+type imessage struct {
+	mt   int
+	data []byte
 }
 
 // Connection represents a wrapper connection
 type Connection struct {
-	logger   *zap.Logger
-	h        EventHandler
-	id       uint64
-	absconn  AbsConn
-	output   chan []byte
-	wg       sync.WaitGroup
-	mu       sync.RWMutex
-	property map[string]interface{}
-	closed   bool
+	s          *WsServer
+	id         uint64
+	wsconn     *websocket.Conn
+	output     chan imessage
+	outputDone chan struct{}
+	wg         sync.WaitGroup
+	mu         sync.RWMutex
+	closedFlag bool
 }
 
 // NewConnection return a new connection
-func NewConnection(absconn AbsConn, id uint64, logger *zap.Logger, h EventHandler) *Connection {
+func NewConnection(conn *websocket.Conn, id uint64, s *WsServer) *Connection {
 	c := &Connection{
-		logger:   logger,
-		h:        h,
-		id:       id,
-		absconn:  absconn,
-		output:   make(chan []byte, 128),
-		property: make(map[string]interface{}),
-		closed:   false,
+		s:          s,
+		id:         id,
+		wsconn:     conn,
+		output:     make(chan imessage, 128),
+		outputDone: make(chan struct{}),
+		closedFlag: false,
 	}
 	return c
 }
@@ -53,76 +43,53 @@ func (c *Connection) ConnID() uint64 {
 }
 
 func (c *Connection) LocalAddr() net.Addr {
-	return c.absconn.LocalAddr()
+	return c.wsconn.LocalAddr()
 }
 
 func (c *Connection) RemoteAddr() net.Addr {
-	return c.absconn.RemoteAddr()
+	return c.wsconn.RemoteAddr()
 }
 
-func (c *Connection) SetProperty(key string, value interface{}) {
+func (c *Connection) closed() bool {
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	c.property[key] = value
+	return c.closedFlag
 }
 
-func (c *Connection) GetProperty(key string) (interface{}, error) {
-	c.mu.RLock()
-	defer c.mu.RUnlock()
-	if value, ok := c.property[key]; ok {
-		return value, nil
-	}
-	return nil, errors.New("no property data found")
-}
-
-func (c *Connection) RemoveProperty(key string) {
+func (c *Connection) close() {
 	c.mu.Lock()
-	defer c.mu.Unlock()
-	delete(c.property, key)
+	isclosed := c.closedFlag
+	c.closedFlag = true
+	c.mu.Unlock()
+
+	if !isclosed {
+		c.wsconn.Close()
+		c.outputDone <- struct{}{}
+	}
 }
 
-func (c *Connection) Int64(key string) int64 {
-	c.mu.RLock()
-	defer c.mu.RUnlock()
-	v, ok := c.property[key]
-	if !ok {
-		return 0
+func (c *Connection) writeMessage(m imessage) {
+	if c.closed() {
+		c.s.onError(c.ConnID(), ErrConnClosed)
+		return
 	}
-	value, ok := v.(int64)
-	if !ok {
-		return 0
+	select {
+	case c.output <- m:
+	default:
+		c.s.onError(c.ConnID(), ErrBufferFull)
 	}
-	return value
 }
 
 func (c *Connection) Close() {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-	if c.closed {
-		return
-	}
-	c.output <- nil
+	c.writeMessage(imessage{mt: websocket.CloseMessage, data: []byte{}})
 }
 
-func (c *Connection) Write(buffer []byte) {
-	if buffer == nil {
-		panic("buffer must be not nil")
-	}
-	c.mu.Lock()
-	defer c.mu.Unlock()
-	if c.closed {
-		return
-	}
-	c.output <- buffer
+func (c *Connection) WriteText(text []byte) {
+	c.writeMessage(imessage{mt: websocket.TextMessage, data: text})
 }
 
-func (c *Connection) release() {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-	if !c.closed {
-		close(c.output)
-		c.closed = true
-	}
+func (c *Connection) WriteBinary(buffer []byte) {
+	c.writeMessage(imessage{mt: websocket.BinaryMessage, data: buffer})
 }
 
 // Start create goroutines for reading and writing
@@ -136,43 +103,55 @@ func (c *Connection) Start() {
 func (c *Connection) readLoop() {
 	defer func() {
 		if err := recover(); err != nil {
-			c.logger.Error("readLoop catch panic", zap.Any("err", err))
+			c.s.opts.Logger.Error("readLoop catch panic", zap.Any("err", err))
 		}
-		// notify writeLoop to quit
-		c.release()
+		c.close()
 		c.wg.Done()
-		c.logger.Info("readLoop quit", zap.Uint64("connID", c.id))
+		c.s.opts.Logger.Info("readLoop quit", zap.Uint64("connID", c.id))
 	}()
 
 	for {
-		data, err := c.absconn.ReadMessage()
+		t, msg, err := c.wsconn.ReadMessage()
 		if err != nil {
-			c.logger.Error("read message error", zap.Uint64("connID", c.id), zap.Error(err))
-			return
+			if websocket.IsUnexpectedCloseError(err, websocket.CloseGoingAway, websocket.CloseAbnormalClosure) {
+				c.s.opts.Logger.Error("read message unexpected error", zap.Uint64("connID", c.id), zap.Error(err))
+			}
+			break
 		}
-		c.h.OnMessage(c, data)
+		switch t {
+		case websocket.TextMessage:
+			c.s.onTextMessage(c.ConnID(), msg)
+		case websocket.BinaryMessage:
+			c.s.onBinaryMessage(c.ConnID(), msg)
+		}
 	}
 }
 
 func (c *Connection) writeLoop() {
 	defer func() {
 		if err := recover(); err != nil {
-			c.logger.Error("writeLoop catch panic", zap.Any("err", err))
+			c.s.opts.Logger.Error("writeLoop catch panic", zap.Any("err", err))
 		}
-		c.release()
-		c.absconn.Close()
+		c.close()
 		c.wg.Done()
-		c.logger.Info("writeLoop quit", zap.Uint64("connID", c.id))
+		c.s.opts.Logger.Info("writeLoop quit", zap.Uint64("connID", c.id))
 	}()
 
-	for buffer := range c.output {
-		if buffer == nil {
-			c.logger.Error("writeLoop receive active quit", zap.Uint64("connID", c.id))
-			return
-		}
-		if err := c.absconn.WriteMessage(buffer); err != nil {
-			c.logger.Error("write message error", zap.Uint64("connID", c.id), zap.Error(err))
+	for {
+		select {
+		case msg := <-c.output:
+			if msg.mt == websocket.CloseMessage {
+				c.s.opts.Logger.Info("writeLoop active close", zap.Uint64("connID", c.id))
+				return
+			}
+			if err := c.wsconn.WriteMessage(msg.mt, msg.data); err != nil {
+				c.s.opts.Logger.Error("write message error", zap.Uint64("connID", c.id), zap.Error(err))
+				return
+			}
+		case <-c.outputDone:
+			c.s.opts.Logger.Info("receive exit signal from readloop", zap.Uint64("connID", c.id))
 			return
 		}
 	}
+
 }
