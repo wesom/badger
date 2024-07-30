@@ -26,19 +26,20 @@ func main() {
 	if err != nil {
 		return
 	}
-	server := badger.NewWsServer(
+	gate := badger.NewWsGateWay(
 		badger.WithLogger(logger),
 	)
-	defer server.Close()
+	defer gate.Close()
 
-	server.OnTextMessage(func(connID uint64, data []byte) {
+	gate.OnTextMessage(func(connID uint64, data []byte) {
 		logger.Info("OnTextMessage: ", zap.Uint64("connID", connID), zap.String("data", string(data)))
-		server.SendTextMesaage(connID, data)
+		gate.SendTextMesaage(connID, data)
+		// server.Kick(connID)
 	})
 	mux := http.NewServeMux()
 	mux.HandleFunc("/", serveHome)
 	mux.HandleFunc("/ws", func(w http.ResponseWriter, r *http.Request) {
-		server.ServeHTTP(w, r)
+		gate.ServeHTTP(w, r)
 	})
 	httpsrv := &http.Server{
 		Addr:    "127.0.0.1:8080",
