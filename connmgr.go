@@ -9,9 +9,9 @@ type ConnMgr struct {
 	conns map[uint64]*Connection
 }
 
-func NewConnMgr() *ConnMgr {
+func NewConnMgr(maxConn int) *ConnMgr {
 	return &ConnMgr{
-		conns: make(map[uint64]*Connection),
+		conns: make(map[uint64]*Connection, maxConn),
 	}
 }
 
@@ -27,19 +27,18 @@ func (cmgr *ConnMgr) Remove(conn *Connection) {
 	delete(cmgr.conns, conn.ConnID())
 }
 
-func (cmgr *ConnMgr) Find(connID uint64) *Connection {
-	cmgr.mu.Lock()
-	defer cmgr.mu.Unlock()
-	v, ok := cmgr.conns[connID]
+func (cmgr *ConnMgr) Apply(connID uint64, f func(*Connection)) {
+	cmgr.mu.RLock()
+	defer cmgr.mu.RUnlock()
+	c, ok := cmgr.conns[connID]
 	if ok {
-		return v
+		f(c)
 	}
-	return nil
 }
 
 func (cmgr *ConnMgr) Close() {
-	cmgr.mu.Lock()
-	defer cmgr.mu.Unlock()
+	cmgr.mu.RLock()
+	defer cmgr.mu.RUnlock()
 	for _, conn := range cmgr.conns {
 		conn.Close()
 	}

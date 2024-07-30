@@ -15,7 +15,7 @@ type imessage struct {
 
 // Connection represents a wrapper connection
 type Connection struct {
-	s          *WsServer
+	s          *WsGateWay
 	id         uint64
 	wsconn     *websocket.Conn
 	output     chan imessage
@@ -26,7 +26,7 @@ type Connection struct {
 }
 
 // NewConnection return a new connection
-func NewConnection(conn *websocket.Conn, id uint64, s *WsServer) *Connection {
+func NewConnection(conn *websocket.Conn, id uint64, s *WsGateWay) *Connection {
 	c := &Connection{
 		s:          s,
 		id:         id,
@@ -51,8 +51,8 @@ func (c *Connection) RemoteAddr() net.Addr {
 }
 
 func (c *Connection) closed() bool {
-	c.mu.Lock()
-	defer c.mu.Unlock()
+	c.mu.RLock()
+	defer c.mu.RUnlock()
 	return c.closedFlag
 }
 

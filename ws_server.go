@@ -20,7 +20,7 @@ var (
 	}
 )
 
-type WsServer struct {
+type WsGateWay struct {
 	opts            *Options
 	nextid          uint64
 	cmgr            *ConnMgr
@@ -31,16 +31,17 @@ type WsServer struct {
 	onError         onErrorFunc
 }
 
-func NewWsServer(opts ...Option) *WsServer {
+func NewWsGateWay(opts ...Option) *WsGateWay {
 	options := &Options{
-		Logger: zap.NewNop(),
+		Logger:   zap.NewNop(),
+		MaxConns: 1024,
 	}
 	for _, o := range opts {
 		o(options)
 	}
-	s := &WsServer{
+	s := &WsGateWay{
 		opts: options,
-		cmgr: NewConnMgr(),
+		cmgr: NewConnMgr(options.MaxConns),
 		onConnect: func(connID uint64, remoteAddr net.Addr) error {
 			return nil
 		},
@@ -53,7 +54,7 @@ func NewWsServer(opts ...Option) *WsServer {
 	return s
 }
 
-func (s *WsServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+func (s *WsGateWay) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	wsconn, err := upgrader.Upgrade(w, r, nil)
 	if err != nil {
 		s.opts.Logger.Error("ws upgrade err", zap.Error(err))
@@ -76,48 +77,45 @@ func (s *WsServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 }
 
 // Close
-func (s *WsServer) Close() error {
+func (s *WsGateWay) Close() error {
 	s.cmgr.Close()
 	return nil
 }
 
-func (s *WsServer) OnConnect(f func(connID uint64, remoteAddr net.Addr) error) {
+func (s *WsGateWay) OnConnect(f func(connID uint64, remoteAddr net.Addr) error) {
 	s.onConnect = f
 }
 
-func (s *WsServer) OnTextMessage(f func(connID uint64, data []byte)) {
+func (s *WsGateWay) OnTextMessage(f func(connID uint64, data []byte)) {
 	s.onTextMessage = f
 }
 
-func (s *WsServer) OnBinayMessage(f func(connID uint64, data []byte)) {
+func (s *WsGateWay) OnBinayMessage(f func(connID uint64, data []byte)) {
 	s.onBinaryMessage = f
 }
 
-func (s *WsServer) OnError(f func(connID uint64, e error)) {
+func (s *WsGateWay) OnError(f func(connID uint64, e error)) {
 	s.onError = f
 }
 
-func (s *WsServer) OnDisconnect(f func(connID uint64)) {
+func (s *WsGateWay) OnDisconnect(f func(connID uint64)) {
 	s.onDisconnect = f
 }
 
-func (s *WsServer) SendTextMesaage(connID uint64, data []byte) {
-	conn := s.cmgr.Find(connID)
-	if conn != nil {
-		conn.WriteText(data)
-	}
+func (s *WsGateWay) SendTextMesaage(connID uint64, data []byte) {
+	s.cmgr.Apply(connID, func(c *Connection) {
+		c.WriteText(data)
+	})
 }
 
-func (s *WsServer) SendBinaryMesaage(connID uint64, data []byte) {
-	conn := s.cmgr.Find(connID)
-	if conn != nil {
-		conn.WriteBinary(data)
-	}
+func (s *WsGateWay) SendBinaryMesaage(connID uint64, data []byte) {
+	s.cmgr.Apply(connID, func(c *Connection) {
+		c.WriteBinary(data)
+	})
 }
 
-func (s *WsServer) Kick(connID uint64) {
-	conn := s.cmgr.Find(connID)
-	if conn != nil {
-		conn.Close()
-	}
+func (s *WsGateWay) Kick(connID uint64) {
+	s.cmgr.Apply(connID, func(c *Connection) {
+		c.Close()
+	})
 }
