@@ -17,7 +17,7 @@ func generateConnID() string {
 type WsGateWay struct {
 	upgrader        *websocket.Upgrader
 	opts            *Options
-	cmgr            *ConnMgr
+	cmgr            *connMgr
 	onConnect       onConnectFunc
 	onTextMessage   onTextMessageFunc
 	onBinaryMessage onBinaryMessageFunc
@@ -35,7 +35,7 @@ func NewWsGateWay(opts ...Option) *WsGateWay {
 	}
 	s := &WsGateWay{
 		opts: options,
-		cmgr: NewConnMgr(options.MaxConns),
+		cmgr: newConnMgr(options.MaxConns),
 		onConnect: func(connID string, remoteAddr net.Addr) error {
 			return nil
 		},
@@ -75,19 +75,19 @@ func (s *WsGateWay) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	conn := NewConnection(wsconn, newid, s)
+	conn := newConnection(wsconn, newid, s)
 	defer func() {
-		s.cmgr.Remove(conn)
-		s.onDisconnect(conn.ConnID())
+		s.cmgr.remove(conn)
+		s.onDisconnect(conn.connID())
 	}()
 
-	s.cmgr.Add(conn)
-	conn.Start()
+	s.cmgr.add(conn)
+	conn.start()
 }
 
 // Close
 func (s *WsGateWay) Close() error {
-	s.cmgr.Close()
+	s.cmgr.close()
 	return nil
 }
 
@@ -112,19 +112,19 @@ func (s *WsGateWay) OnDisconnect(f func(connID string)) {
 }
 
 func (s *WsGateWay) SendTextMesaage(connID string, data []byte) {
-	s.cmgr.Apply(connID, func(c *Connection) {
-		c.WriteText(data)
+	s.cmgr.apply(connID, func(c *connection) {
+		c.writeText(data)
 	})
 }
 
 func (s *WsGateWay) SendBinaryMesaage(connID string, data []byte) {
-	s.cmgr.Apply(connID, func(c *Connection) {
-		c.WriteBinary(data)
+	s.cmgr.apply(connID, func(c *connection) {
+		c.writeBinary(data)
 	})
 }
 
 func (s *WsGateWay) Kick(connID string) {
-	s.cmgr.Apply(connID, func(c *Connection) {
-		c.Close()
+	s.cmgr.apply(connID, func(c *connection) {
+		c.writeClose()
 	})
 }

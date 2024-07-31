@@ -1,7 +1,6 @@
 package badger
 
 import (
-	"net"
 	"sync"
 
 	"github.com/gorilla/websocket"
@@ -13,8 +12,8 @@ type imessage struct {
 	data        []byte
 }
 
-// Connection represents a wrapper connection
-type Connection struct {
+// connection represents a wrapper connection
+type connection struct {
 	s          *WsGateWay
 	id         string
 	wsconn     *websocket.Conn
@@ -22,90 +21,82 @@ type Connection struct {
 	outputDone chan struct{}
 	wg         sync.WaitGroup
 	mu         sync.RWMutex
-	closedFlag bool
+	stopFlag   bool
 }
 
 // NewConnection return a new connection
-func NewConnection(conn *websocket.Conn, id string, s *WsGateWay) *Connection {
-	c := &Connection{
+func newConnection(conn *websocket.Conn, id string, s *WsGateWay) *connection {
+	c := &connection{
 		s:          s,
 		id:         id,
 		wsconn:     conn,
 		output:     make(chan imessage, 128),
 		outputDone: make(chan struct{}),
-		closedFlag: false,
+		stopFlag:   false,
 	}
 	return c
 }
 
-func (c *Connection) ConnID() string {
+func (c *connection) connID() string {
 	return c.id
 }
 
-func (c *Connection) LocalAddr() net.Addr {
-	return c.wsconn.LocalAddr()
-}
-
-func (c *Connection) RemoteAddr() net.Addr {
-	return c.wsconn.RemoteAddr()
-}
-
-func (c *Connection) closed() bool {
+func (c *connection) closed() bool {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
-	return c.closedFlag
+	return c.stopFlag
 }
 
-func (c *Connection) close() {
+func (c *connection) stop() {
 	c.mu.Lock()
-	isclosed := c.closedFlag
-	c.closedFlag = true
+	isstoped := c.stopFlag
+	c.stopFlag = true
 	c.mu.Unlock()
 
-	if !isclosed {
+	if !isstoped {
 		c.wsconn.Close()
 		c.outputDone <- struct{}{}
 	}
 }
 
-func (c *Connection) writeMessage(m imessage) {
+func (c *connection) writeMessage(m imessage) {
 	if c.closed() {
-		c.s.onError(c.ConnID(), ErrConnClosed)
+		c.s.onError(c.connID(), ErrConnClosed)
 		return
 	}
 	select {
 	case c.output <- m:
 	default:
-		c.s.onError(c.ConnID(), ErrBufferFull)
+		c.s.onError(c.connID(), ErrBufferFull)
 	}
 }
 
-func (c *Connection) Close() {
+func (c *connection) writeClose() {
 	c.writeMessage(imessage{messageType: websocket.CloseMessage, data: []byte{}})
 }
 
-func (c *Connection) WriteText(text []byte) {
+func (c *connection) writeText(text []byte) {
 	c.writeMessage(imessage{messageType: websocket.TextMessage, data: text})
 }
 
-func (c *Connection) WriteBinary(buffer []byte) {
+func (c *connection) writeBinary(buffer []byte) {
 	c.writeMessage(imessage{messageType: websocket.BinaryMessage, data: buffer})
 }
 
 // Start create goroutines for reading and writing
-func (c *Connection) Start() {
+func (c *connection) start() {
 	c.wg.Add(2)
 	go c.readLoop()
 	go c.writeLoop()
 	c.wg.Wait()
 }
 
-func (c *Connection) readLoop() {
+func (c *connection) readLoop() {
 	defer func() {
 		if err := recover(); err != nil {
 			c.s.opts.Logger.Error("readLoop catch panic", zap.Any("err", err))
 		}
-		c.close()
+		c.stop()
 		c.wg.Done()
 		c.s.opts.Logger.Info("readLoop quit", zap.String("connID", c.id))
 	}()
@@ -120,19 +111,19 @@ func (c *Connection) readLoop() {
 		}
 		switch t {
 		case websocket.TextMessage:
-			c.s.onTextMessage(c.ConnID(), msg)
+			c.s.onTextMessage(c.connID(), msg)
 		case websocket.BinaryMessage:
-			c.s.onBinaryMessage(c.ConnID(), msg)
+			c.s.onBinaryMessage(c.connID(), msg)
 		}
 	}
 }
 
-func (c *Connection) writeLoop() {
+func (c *connection) writeLoop() {
 	defer func() {
 		if err := recover(); err != nil {
 			c.s.opts.Logger.Error("writeLoop catch panic", zap.Any("err", err))
 		}
-		c.close()
+		c.stop()
 		c.wg.Done()
 		c.s.opts.Logger.Info("writeLoop quit", zap.String("connID", c.id))
 	}()
