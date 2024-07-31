@@ -29,8 +29,9 @@ func (cmgr *ConnMgr) Remove(conn *Connection) {
 
 func (cmgr *ConnMgr) Apply(connID uint64, f func(*Connection)) {
 	cmgr.mu.RLock()
-	defer cmgr.mu.RUnlock()
 	c, ok := cmgr.conns[connID]
+	cmgr.mu.RUnlock()
+	// c is thread safe
 	if ok {
 		f(c)
 	}
