@@ -9,9 +9,9 @@ type ConnMgr struct {
 	conns map[uint64]*Connection
 }
 
-func NewConnMgr(maxConn int) *ConnMgr {
+func NewConnMgr(initSize int) *ConnMgr {
 	return &ConnMgr{
-		conns: make(map[uint64]*Connection, maxConn),
+		conns: make(map[uint64]*Connection, initSize),
 	}
 }
 
