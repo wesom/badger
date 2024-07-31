@@ -25,8 +25,8 @@ func WithMaxConns(size int) Option {
 	}
 }
 
-type onConnectFunc func(connID uint64, remoteAddr net.Addr) error
-type onTextMessageFunc func(connID uint64, data []byte)
-type onBinaryMessageFunc func(connID uint64, data []byte)
-type onErrorFunc func(connID uint64, e error)
-type onDisconnectFunc func(connID uint64)
+type onConnectFunc func(connID string, remoteAddr net.Addr) error
+type onTextMessageFunc func(connID string, data []byte)
+type onBinaryMessageFunc func(connID string, data []byte)
+type onErrorFunc func(connID string, e error)
+type onDisconnectFunc func(connID string)

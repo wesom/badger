@@ -3,16 +3,20 @@ package badger
 import (
 	"net"
 	"net/http"
-	"sync/atomic"
+
+	"github.com/google/uuid"
 
 	"github.com/gorilla/websocket"
 	"go.uber.org/zap"
 )
 
+func generateConnID() string {
+	return uuid.New().String()
+}
+
 type WsGateWay struct {
 	upgrader        *websocket.Upgrader
 	opts            *Options
-	nextid          uint64
 	cmgr            *ConnMgr
 	onConnect       onConnectFunc
 	onTextMessage   onTextMessageFunc
@@ -32,13 +36,13 @@ func NewWsGateWay(opts ...Option) *WsGateWay {
 	s := &WsGateWay{
 		opts: options,
 		cmgr: NewConnMgr(options.MaxConns),
-		onConnect: func(connID uint64, remoteAddr net.Addr) error {
+		onConnect: func(connID string, remoteAddr net.Addr) error {
 			return nil
 		},
-		onTextMessage:   func(connID uint64, data []byte) {},
-		onBinaryMessage: func(connID uint64, data []byte) {},
-		onError:         func(connID uint64, e error) {},
-		onDisconnect:    func(connID uint64) {},
+		onTextMessage:   func(connID string, data []byte) {},
+		onBinaryMessage: func(connID string, data []byte) {},
+		onError:         func(connID string, e error) {},
+		onDisconnect:    func(connID string) {},
 	}
 
 	// Set upgrader options
@@ -62,7 +66,7 @@ func (s *WsGateWay) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	newid := atomic.AddUint64(&s.nextid, 1)
+	newid := generateConnID()
 
 	err = s.onConnect(newid, wsconn.RemoteAddr())
 	if err != nil {
@@ -87,39 +91,39 @@ func (s *WsGateWay) Close() error {
 	return nil
 }
 
-func (s *WsGateWay) OnConnect(f func(connID uint64, remoteAddr net.Addr) error) {
+func (s *WsGateWay) OnConnect(f func(connID string, remoteAddr net.Addr) error) {
 	s.onConnect = f
 }
 
-func (s *WsGateWay) OnTextMessage(f func(connID uint64, data []byte)) {
+func (s *WsGateWay) OnTextMessage(f func(connID string, data []byte)) {
 	s.onTextMessage = f
 }
 
-func (s *WsGateWay) OnBinaryMessage(f func(connID uint64, data []byte)) {
+func (s *WsGateWay) OnBinaryMessage(f func(connID string, data []byte)) {
 	s.onBinaryMessage = f
 }
 
-func (s *WsGateWay) OnError(f func(connID uint64, e error)) {
+func (s *WsGateWay) OnError(f func(connID string, e error)) {
 	s.onError = f
 }
 
-func (s *WsGateWay) OnDisconnect(f func(connID uint64)) {
+func (s *WsGateWay) OnDisconnect(f func(connID string)) {
 	s.onDisconnect = f
 }
 
-func (s *WsGateWay) SendTextMesaage(connID uint64, data []byte) {
+func (s *WsGateWay) SendTextMesaage(connID string, data []byte) {
 	s.cmgr.Apply(connID, func(c *Connection) {
 		c.WriteText(data)
 	})
 }
 
-func (s *WsGateWay) SendBinaryMesaage(connID uint64, data []byte) {
+func (s *WsGateWay) SendBinaryMesaage(connID string, data []byte) {
 	s.cmgr.Apply(connID, func(c *Connection) {
 		c.WriteBinary(data)
 	})
 }
 
-func (s *WsGateWay) Kick(connID uint64) {
+func (s *WsGateWay) Kick(connID string) {
 	s.cmgr.Apply(connID, func(c *Connection) {
 		c.Close()
 	})

@@ -9,14 +9,14 @@ import (
 )
 
 type imessage struct {
-	mt   int
-	data []byte
+	messageType int
+	data        []byte
 }
 
 // Connection represents a wrapper connection
 type Connection struct {
 	s          *WsGateWay
-	id         uint64
+	id         string
 	wsconn     *websocket.Conn
 	output     chan imessage
 	outputDone chan struct{}
@@ -26,7 +26,7 @@ type Connection struct {
 }
 
 // NewConnection return a new connection
-func NewConnection(conn *websocket.Conn, id uint64, s *WsGateWay) *Connection {
+func NewConnection(conn *websocket.Conn, id string, s *WsGateWay) *Connection {
 	c := &Connection{
 		s:          s,
 		id:         id,
@@ -38,7 +38,7 @@ func NewConnection(conn *websocket.Conn, id uint64, s *WsGateWay) *Connection {
 	return c
 }
 
-func (c *Connection) ConnID() uint64 {
+func (c *Connection) ConnID() string {
 	return c.id
 }
 
@@ -81,15 +81,15 @@ func (c *Connection) writeMessage(m imessage) {
 }
 
 func (c *Connection) Close() {
-	c.writeMessage(imessage{mt: websocket.CloseMessage, data: []byte{}})
+	c.writeMessage(imessage{messageType: websocket.CloseMessage, data: []byte{}})
 }
 
 func (c *Connection) WriteText(text []byte) {
-	c.writeMessage(imessage{mt: websocket.TextMessage, data: text})
+	c.writeMessage(imessage{messageType: websocket.TextMessage, data: text})
 }
 
 func (c *Connection) WriteBinary(buffer []byte) {
-	c.writeMessage(imessage{mt: websocket.BinaryMessage, data: buffer})
+	c.writeMessage(imessage{messageType: websocket.BinaryMessage, data: buffer})
 }
 
 // Start create goroutines for reading and writing
@@ -107,14 +107,14 @@ func (c *Connection) readLoop() {
 		}
 		c.close()
 		c.wg.Done()
-		c.s.opts.Logger.Info("readLoop quit", zap.Uint64("connID", c.id))
+		c.s.opts.Logger.Info("readLoop quit", zap.String("connID", c.id))
 	}()
 
 	for {
 		t, msg, err := c.wsconn.ReadMessage()
 		if err != nil {
 			if websocket.IsUnexpectedCloseError(err, websocket.CloseGoingAway, websocket.CloseAbnormalClosure) {
-				c.s.opts.Logger.Error("read message unexpected error", zap.Uint64("connID", c.id), zap.Error(err))
+				c.s.opts.Logger.Error("read message unexpected error", zap.String("connID", c.id), zap.Error(err))
 			}
 			break
 		}
@@ -134,22 +134,22 @@ func (c *Connection) writeLoop() {
 		}
 		c.close()
 		c.wg.Done()
-		c.s.opts.Logger.Info("writeLoop quit", zap.Uint64("connID", c.id))
+		c.s.opts.Logger.Info("writeLoop quit", zap.String("connID", c.id))
 	}()
 
 	for {
 		select {
 		case msg := <-c.output:
-			if msg.mt == websocket.CloseMessage {
-				c.s.opts.Logger.Info("writeLoop active close", zap.Uint64("connID", c.id))
+			if msg.messageType == websocket.CloseMessage {
+				c.s.opts.Logger.Info("writeLoop active close", zap.String("connID", c.id))
 				return
 			}
-			if err := c.wsconn.WriteMessage(msg.mt, msg.data); err != nil {
-				c.s.opts.Logger.Error("write message error", zap.Uint64("connID", c.id), zap.Error(err))
+			if err := c.wsconn.WriteMessage(msg.messageType, msg.data); err != nil {
+				c.s.opts.Logger.Error("write message error", zap.String("connID", c.id), zap.Error(err))
 				return
 			}
 		case <-c.outputDone:
-			c.s.opts.Logger.Info("receive exit signal from readloop", zap.Uint64("connID", c.id))
+			c.s.opts.Logger.Info("receive exit signal from readloop", zap.String("connID", c.id))
 			return
 		}
 	}
