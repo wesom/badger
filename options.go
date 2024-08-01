@@ -1,8 +1,6 @@
 package badger
 
 import (
-	"net"
-
 	"go.uber.org/zap"
 )
 
@@ -24,9 +22,3 @@ func WithMaxConns(size int) Option {
 		opts.MaxConns = size
 	}
 }
-
-type onConnectFunc func(connID string, remoteAddr net.Addr) error
-type onTextMessageFunc func(connID string, data []byte)
-type onBinaryMessageFunc func(connID string, data []byte)
-type onErrorFunc func(connID string, e error)
-type onDisconnectFunc func(connID string)

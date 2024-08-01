@@ -6,41 +6,31 @@ import (
 
 type connMgr struct {
 	mu    sync.RWMutex
-	conns map[string]*connection
+	conns map[uint64]*Connection
 }
 
-func newConnMgr(initSize int) *connMgr {
+func newConnMgr() *connMgr {
 	return &connMgr{
-		conns: make(map[string]*connection, initSize),
+		conns: make(map[uint64]*Connection),
 	}
 }
 
-func (cmgr *connMgr) add(conn *connection) {
+func (cmgr *connMgr) add(conn *Connection) {
 	cmgr.mu.Lock()
 	defer cmgr.mu.Unlock()
-	cmgr.conns[conn.connID()] = conn
+	cmgr.conns[conn.ConnID()] = conn
 }
 
-func (cmgr *connMgr) remove(conn *connection) {
+func (cmgr *connMgr) remove(conn *Connection) {
 	cmgr.mu.Lock()
 	defer cmgr.mu.Unlock()
-	delete(cmgr.conns, conn.connID())
-}
-
-func (cmgr *connMgr) apply(connID string, f func(*connection)) {
-	cmgr.mu.RLock()
-	c, ok := cmgr.conns[connID]
-	cmgr.mu.RUnlock()
-	// c is thread safe
-	if ok {
-		f(c)
-	}
+	delete(cmgr.conns, conn.ConnID())
 }
 
 func (cmgr *connMgr) close() {
 	cmgr.mu.RLock()
 	defer cmgr.mu.RUnlock()
 	for _, conn := range cmgr.conns {
-		conn.writeClose()
+		conn.Close()
 	}
 }

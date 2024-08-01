@@ -31,10 +31,10 @@ func main() {
 	)
 	defer gate.Close()
 
-	gate.OnTextMessage(func(connID string, data []byte) {
-		logger.Info("OnTextMessage: ", zap.String("connID", connID), zap.String("data", string(data)))
-		gate.SendTextMesaage(connID, data)
-		gate.Kick(connID)
+	gate.OnTextMessage(func(conn *badger.Connection, data []byte) {
+		logger.Info("OnTextMessage: ", zap.Uint64("connID", conn.ConnID()), zap.String("data", string(data)))
+		conn.WriteTextMessage(data)
+		// conn.Close()
 	})
 	mux := http.NewServeMux()
 	mux.HandleFunc("/", serveHome)
