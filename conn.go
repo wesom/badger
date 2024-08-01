@@ -20,7 +20,6 @@ type Connection struct {
 	wsconn     *websocket.Conn
 	output     chan imessage
 	outputDone chan struct{}
-	wg         sync.WaitGroup
 	mu         sync.RWMutex
 	stopFlag   bool
 }
@@ -58,11 +57,11 @@ func (c *Connection) closed() bool {
 
 func (c *Connection) stop() {
 	c.mu.Lock()
-	isstoped := c.stopFlag
+	isStoped := c.stopFlag
 	c.stopFlag = true
 	c.mu.Unlock()
 
-	if !isstoped {
+	if !isStoped {
 		c.wsconn.Close()
 		c.outputDone <- struct{}{}
 	}
@@ -92,21 +91,12 @@ func (c *Connection) WriteBinaryMessage(buffer []byte) {
 	c.write(imessage{messageType: websocket.BinaryMessage, data: buffer})
 }
 
-// Start create goroutines for reading and writing
-func (c *Connection) start() {
-	c.wg.Add(2)
-	go c.readLoop()
-	go c.writeLoop()
-	c.wg.Wait()
-}
-
 func (c *Connection) readLoop() {
 	defer func() {
 		if err := recover(); err != nil {
 			c.s.opts.Logger.Error("readLoop catch panic", zap.Any("err", err))
 		}
 		c.stop()
-		c.wg.Done()
 		c.s.opts.Logger.Info("readLoop quit", zap.Uint64("connID", c.id))
 	}()
 
@@ -133,7 +123,6 @@ func (c *Connection) writeLoop() {
 			c.s.opts.Logger.Error("writeLoop catch panic", zap.Any("err", err))
 		}
 		c.stop()
-		c.wg.Done()
 		c.s.opts.Logger.Info("writeLoop quit", zap.Uint64("connID", c.id))
 	}()
 

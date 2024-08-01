@@ -68,14 +68,15 @@ func (s *WsGateWay) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	newid := atomic.AddUint64(&s.nextid, 1)
 
 	conn := newConnection(wsconn, newid, s)
-	defer func() {
-		s.cmgr.remove(conn)
-		s.onDisconnect(conn)
-	}()
 
 	s.cmgr.add(conn)
 	s.onConnect(conn)
-	conn.start()
+
+	go conn.writeLoop()
+	conn.readLoop()
+
+	s.cmgr.remove(conn)
+	s.onDisconnect(conn)
 }
 
 // Close
