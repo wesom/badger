@@ -5,7 +5,6 @@ import (
 	"sync/atomic"
 
 	"github.com/gorilla/websocket"
-	"go.uber.org/zap"
 )
 
 type onConnectFunc func(*Connection)
@@ -29,7 +28,6 @@ type WsGateWay struct {
 
 func NewWsGateWay(opts ...Option) *WsGateWay {
 	options := &Options{
-		Logger:           zap.NewNop(),
 		OutputBufferSize: 128,
 	}
 	for _, o := range opts {
@@ -63,14 +61,12 @@ func NewWsGateWay(opts ...Option) *WsGateWay {
 func (s *WsGateWay) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	if s.IsClosed() {
-		s.opts.Logger.Warn("WsGateway is closed")
 		http.Error(w, "Server is closed", http.StatusNotAcceptable)
 		return
 	}
 
 	wsconn, err := s.upgrader.Upgrade(w, r, nil)
 	if err != nil {
-		s.opts.Logger.Error("ws upgrade err", zap.Error(err))
 		http.Error(w, "Could not upgrade to WebSocket", http.StatusBadRequest)
 		return
 	}

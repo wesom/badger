@@ -5,7 +5,6 @@ import (
 	"sync"
 
 	"github.com/gorilla/websocket"
-	"go.uber.org/zap"
 )
 
 type imessage struct {
@@ -92,15 +91,11 @@ func (c *Connection) WriteBinaryMessage(buffer []byte) {
 }
 
 func (c *Connection) readLoop() {
-	defer func() {
-		c.s.opts.Logger.Info("readLoop quit", zap.Uint64("connID", c.id))
-	}()
-
 	for {
 		t, msg, err := c.wsconn.ReadMessage()
 		if err != nil {
 			if websocket.IsUnexpectedCloseError(err, websocket.CloseGoingAway, websocket.CloseAbnormalClosure) {
-				c.s.opts.Logger.Error("read message unexpected error", zap.Uint64("connID", c.id), zap.Error(err))
+				c.s.onError(c, err)
 			}
 			break
 		}
@@ -116,22 +111,19 @@ func (c *Connection) readLoop() {
 func (c *Connection) writeLoop() {
 	defer func() {
 		c.stop()
-		c.s.opts.Logger.Info("writeLoop quit", zap.Uint64("connID", c.id))
 	}()
 
 	for {
 		select {
 		case msg := <-c.output:
 			if msg.messageType == websocket.CloseMessage {
-				c.s.opts.Logger.Info("writeLoop active close", zap.Uint64("connID", c.id))
 				return
 			}
 			if err := c.wsconn.WriteMessage(msg.messageType, msg.data); err != nil {
-				c.s.opts.Logger.Error("write message error", zap.Uint64("connID", c.id), zap.Error(err))
+				c.s.onError(c, err)
 				return
 			}
 		case <-c.outputDone:
-			c.s.opts.Logger.Info("receive exit signal from readloop", zap.Uint64("connID", c.id))
 			return
 		}
 	}
