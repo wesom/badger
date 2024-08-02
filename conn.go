@@ -30,7 +30,7 @@ func newConnection(conn *websocket.Conn, id uint64, s *WsGateWay) *Connection {
 		s:          s,
 		id:         id,
 		wsconn:     conn,
-		output:     make(chan imessage, 128),
+		output:     make(chan imessage, s.opts.OutputBufferSize),
 		outputDone: make(chan struct{}),
 		stopFlag:   false,
 	}
@@ -93,10 +93,6 @@ func (c *Connection) WriteBinaryMessage(buffer []byte) {
 
 func (c *Connection) readLoop() {
 	defer func() {
-		if err := recover(); err != nil {
-			c.s.opts.Logger.Error("readLoop catch panic", zap.Any("err", err))
-		}
-		c.stop()
 		c.s.opts.Logger.Info("readLoop quit", zap.Uint64("connID", c.id))
 	}()
 
@@ -119,9 +115,6 @@ func (c *Connection) readLoop() {
 
 func (c *Connection) writeLoop() {
 	defer func() {
-		if err := recover(); err != nil {
-			c.s.opts.Logger.Error("writeLoop catch panic", zap.Any("err", err))
-		}
 		c.stop()
 		c.s.opts.Logger.Info("writeLoop quit", zap.Uint64("connID", c.id))
 	}()

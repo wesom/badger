@@ -29,8 +29,8 @@ type WsGateWay struct {
 
 func NewWsGateWay(opts ...Option) *WsGateWay {
 	options := &Options{
-		Logger:   zap.NewNop(),
-		MaxConns: 1024,
+		Logger:           zap.NewNop(),
+		OutputBufferSize: 128,
 	}
 	for _, o := range opts {
 		o(options)
@@ -86,6 +86,7 @@ func (s *WsGateWay) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	conn.readLoop()
 
 	s.hub.del(conn)
+	conn.stop()
 	s.onDisconnect(conn)
 }
 

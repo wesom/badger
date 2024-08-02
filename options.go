@@ -7,8 +7,8 @@ import (
 type Option func(opts *Options)
 
 type Options struct {
-	Logger   *zap.Logger
-	MaxConns int
+	Logger           *zap.Logger
+	OutputBufferSize int
 }
 
 func WithLogger(l *zap.Logger) Option {
@@ -17,8 +17,8 @@ func WithLogger(l *zap.Logger) Option {
 	}
 }
 
-func WithMaxConns(size int) Option {
+func WithOutputBufferSize(size int) Option {
 	return func(opts *Options) {
-		opts.MaxConns = size
+		opts.OutputBufferSize = size
 	}
 }
