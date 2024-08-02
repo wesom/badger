@@ -17,8 +17,9 @@ type onDisconnectFunc func(*Connection)
 type WsGateWay struct {
 	upgrader        *websocket.Upgrader
 	opts            *Options
+	closed          atomic.Bool
 	nextid          uint64
-	cmgr            *connMgr
+	hub             *hub
 	onConnect       onConnectFunc
 	onTextMessage   onTextMessageFunc
 	onBinaryMessage onBinaryMessageFunc
@@ -36,7 +37,7 @@ func NewWsGateWay(opts ...Option) *WsGateWay {
 	}
 	s := &WsGateWay{
 		opts:            options,
-		cmgr:            newConnMgr(),
+		hub:             newHub(),
 		onConnect:       func(*Connection) {},
 		onTextMessage:   func(*Connection, []byte) {},
 		onBinaryMessage: func(*Connection, []byte) {},
@@ -54,10 +55,19 @@ func NewWsGateWay(opts ...Option) *WsGateWay {
 		},
 	}
 
+	s.closed.Store(false)
+
 	return s
 }
 
 func (s *WsGateWay) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+
+	if s.IsClosed() {
+		s.opts.Logger.Warn("WsGateway is closed")
+		http.Error(w, "Server is closed", http.StatusNotAcceptable)
+		return
+	}
+
 	wsconn, err := s.upgrader.Upgrade(w, r, nil)
 	if err != nil {
 		s.opts.Logger.Error("ws upgrade err", zap.Error(err))
@@ -69,20 +79,34 @@ func (s *WsGateWay) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	conn := newConnection(wsconn, newid, s)
 
-	s.cmgr.add(conn)
+	s.hub.add(conn)
 	s.onConnect(conn)
 
 	go conn.writeLoop()
 	conn.readLoop()
 
-	s.cmgr.remove(conn)
+	s.hub.del(conn)
 	s.onDisconnect(conn)
 }
 
-// Close
-func (s *WsGateWay) Close() error {
-	s.cmgr.close()
-	return nil
+func (s *WsGateWay) Len() int {
+	return s.hub.len()
+}
+
+func (s *WsGateWay) IsClosed() bool {
+	return s.closed.Load()
+}
+
+func (s *WsGateWay) Close() {
+	if s.IsClosed() {
+		return
+	}
+	s.closed.Store(true)
+
+	s.hub.each(func(c *Connection) {
+		c.Close()
+	})
+
 }
 
 func (s *WsGateWay) OnConnect(f func(*Connection)) {
