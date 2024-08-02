@@ -1,98 +1,111 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<title>echo</title>
-<script type="text/javascript">
-window.onload = function () {
-    var conn;
-    var msg = document.getElementById("msg");
-    var log = document.getElementById("log");
-
-    function appendLog(item) {
-        var doScroll = log.scrollTop > log.scrollHeight - log.clientHeight - 1;
-        log.appendChild(item);
-        if (doScroll) {
-            log.scrollTop = log.scrollHeight - log.clientHeight;
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>WebSocket Echo Example</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background-color: #f0f0f0;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            margin: 0;
         }
-    }
 
-    document.getElementById("form").onsubmit = function () {
-        if (!conn) {
-            return false;
+        .container {
+            width: 400px;
+            background-color: #fff;
+            border: 1px solid #ccc;
+            padding: 20px;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+            border-radius: 8px;
         }
-        if (!msg.value) {
-            return false;
+
+        .message-input {
+            width: calc(100% - 20px); /* Adjusted for padding */
+            padding: 10px;
+            margin-bottom: 10px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            box-sizing: border-box;
         }
-        conn.send(msg.value);
-        msg.value = "";
-        return false;
-    };
 
-    if (window["WebSocket"]) {
-        conn = new WebSocket("ws://" + document.location.host + "/ws");
-        conn.onclose = function (evt) {
-            var item = document.createElement("div");
-            item.innerHTML = "<b>Connection closed.</b>";
-            appendLog(item);
-        };
-        conn.onmessage = function (evt) {
-            var messages = evt.data.split('\n');
-            for (var i = 0; i < messages.length; i++) {
-                var item = document.createElement("div");
-                item.innerText = messages[i];
-                appendLog(item);
-            }
-        };
-    } else {
-        var item = document.createElement("div");
-        item.innerHTML = "<b>Your browser does not support WebSockets.</b>";
-        appendLog(item);
-    }
-};
-</script>
-<style type="text/css">
-html {
-    overflow: hidden;
-}
-
-body {
-    overflow: hidden;
-    padding: 0;
-    margin: 0;
-    width: 100%;
-    height: 100%;
-    background: gray;
-}
-
-#log {
-    background: white;
-    margin: 0;
-    padding: 0.5em 0.5em 0.5em 0.5em;
-    position: absolute;
-    top: 0.5em;
-    left: 0.5em;
-    right: 0.5em;
-    bottom: 3em;
-    overflow: auto;
-}
-
-#form {
-    padding: 0 0.5em 0 0.5em;
-    margin: 0;
-    position: absolute;
-    bottom: 1em;
-    left: 0px;
-    width: 100%;
-    overflow: hidden;
-}
-
-</style>
+        .message-output {
+            padding: 10px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            min-height: 200px; /* Increased height for more messages */
+            max-height: 300px; /* Limit height to allow scrolling */
+            overflow-y: auto;
+        }
+    </style>
 </head>
 <body>
-<div id="log"></div>
-<form id="form">
-    <input type="submit" value="Send" />
-    <input type="text" id="msg" size="64" autofocus />
-</form>
+    <div class="container">
+        <div class="message-output" id="message-output"></div>
+        <input type="text" id="message-input" class="message-input" placeholder="Type a message...">
+    </div>
+
+    <script>
+        const messageInput = document.getElementById('message-input');
+        const messageOutput = document.getElementById('message-output');
+        let ws;
+
+        connectWebSocket();
+
+        function connectWebSocket() {
+            // Replace with your WebSocket server URL
+            ws = new WebSocket("ws://" + window.location.host + "/ws");
+
+            ws.onopen = function(event) {
+                console.log('WebSocket connected.');
+                showMessage("WebSocket connected.");
+            };
+
+            ws.onmessage = function(event) {
+                const message = event.data;
+                showMessage(`Server echoed: ${message}`);
+            };
+
+            ws.onclose = function(event) {
+                console.log('WebSocket closed.');
+                showMessage("WebSocket closed.");
+            };
+
+            ws.onerror = function(event) {
+                console.error('WebSocket error observed:', event);
+                showMessage("WebSocket error observed.");
+            };
+        }
+
+        function sendMessage(message) {
+            if (ws.readyState === WebSocket.OPEN) {
+                ws.send(message);
+                showMessage(`You: ${message}`);
+            } else {
+                showMessage("WebSocket not connected.");
+            }
+        }
+
+        function showMessage(message) {
+            const messageElement = document.createElement('div');
+            messageElement.textContent = message;
+            messageOutput.appendChild(messageElement);
+            messageOutput.scrollTop = messageOutput.scrollHeight;
+        }
+
+        messageInput.addEventListener('keydown', function(event) {
+            if (event.key === 'Enter') {
+                const message = messageInput.value.trim();
+                if (message !== '') {
+                    sendMessage(message);
+                    messageInput.value = '';
+                }
+            }
+        });
+    </script>
 </body>
 </html>
