@@ -17,7 +17,6 @@ type WsGateWay struct {
 	upgrader        *websocket.Upgrader
 	opts            *Options
 	closed          atomic.Bool
-	nextid          uint64
 	hub             *hub
 	onConnect       onConnectFunc
 	onTextMessage   onTextMessageFunc
@@ -71,9 +70,7 @@ func (s *WsGateWay) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	newid := atomic.AddUint64(&s.nextid, 1)
-
-	conn := newConnection(wsconn, newid, s)
+	conn := newConnection(wsconn, s)
 
 	s.hub.add(conn)
 	s.onConnect(conn)

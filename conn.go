@@ -15,19 +15,18 @@ type imessage struct {
 // Connection represents a wrapper connection
 type Connection struct {
 	s          *WsGateWay
-	id         uint64
 	wsconn     *websocket.Conn
 	output     chan imessage
 	outputDone chan struct{}
 	mu         sync.RWMutex
 	stopFlag   bool
+	property   map[string]any
 }
 
 // NewConnection return a new connection
-func newConnection(conn *websocket.Conn, id uint64, s *WsGateWay) *Connection {
+func newConnection(conn *websocket.Conn, s *WsGateWay) *Connection {
 	c := &Connection{
 		s:          s,
-		id:         id,
 		wsconn:     conn,
 		output:     make(chan imessage, s.opts.OutputBufferSize),
 		outputDone: make(chan struct{}),
@@ -36,16 +35,46 @@ func newConnection(conn *websocket.Conn, id uint64, s *WsGateWay) *Connection {
 	return c
 }
 
-func (c *Connection) ConnID() uint64 {
-	return c.id
-}
-
 func (c *Connection) LocalAddr() net.Addr {
 	return c.wsconn.LocalAddr()
 }
 
 func (c *Connection) RemoteAddr() net.Addr {
 	return c.wsconn.RemoteAddr()
+}
+
+func (c *Connection) Set(key string, value any) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if c.property == nil {
+		c.property = make(map[string]any)
+		c.property[key] = value
+	}
+}
+
+func (c *Connection) Get(key string) (any, bool) {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+	if c.property != nil {
+		v, exist := c.property[key]
+		return v, exist
+	}
+	return nil, false
+}
+
+func (c *Connection) MustGet(key string) any {
+	if v, exist := c.Get(key); exist {
+		return v
+	}
+	panic("key: " + key + " don't exist")
+}
+
+func (c *Connection) UnSet(key string) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if c.property != nil {
+		delete(c.property, key)
+	}
 }
 
 func (c *Connection) closed() bool {
