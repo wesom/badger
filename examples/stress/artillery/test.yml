@@ -1,20 +1,22 @@
 config:
   target: "ws://localhost:8080/ws"
-  processor: './funcs.js'
   phases:
+    - duration: 30
+      arrivalRate: 5
     - duration: 60
-      arrivalRate: 20
+      rampTo: 10
+    - duration: 120
+      rampTo: 20
 
 scenarios:
-  - name: "send text"
+  - name: "sendjson"
     engine: ws
     flow:
+      - loop:
+          - send:
+              json: '{"message": "Hello, World!"}'
+          - think: 1
+        count: 120
       - send:
-          text: "Hello"
-      - think: 1
-  
-  - name: "send binary"
-    engine: ws
-    flow:
-      - functions: 'createRandomScore'
-      - send: '{{ data }}'
+          json: '{"message": "Goodbye"}'
+      - think: 5

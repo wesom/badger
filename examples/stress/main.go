@@ -15,12 +15,8 @@ func main() {
 		gate.ServeHTTP(c.Writer, c.Request)
 	})
 
-	gate.OnTextMessage(func(c *badger.Connection, data []byte) {
-		c.WriteTextMessage(data)
-	})
-
-	gate.OnBinaryMessage(func(c *badger.Connection, data []byte) {
-		c.WriteBinaryMessage(data)
+	gate.OnMessage(func(c *badger.Connection, data []byte) {
+		c.Write(data)
 	})
 
 	r.Run("localhost:8080")

@@ -19,7 +19,7 @@ type Connection struct {
 	output     chan imessage
 	outputDone chan struct{}
 	mu         sync.RWMutex
-	stopFlag   bool
+	closeFlag  bool
 	property   map[string]any
 }
 
@@ -30,7 +30,7 @@ func newConnection(conn *websocket.Conn, s *WsGateWay) *Connection {
 		wsconn:     conn,
 		output:     make(chan imessage, s.opts.OutputBufferSize),
 		outputDone: make(chan struct{}),
-		stopFlag:   false,
+		closeFlag:  false,
 	}
 	return c
 }
@@ -80,22 +80,22 @@ func (c *Connection) UnSet(key string) {
 func (c *Connection) closed() bool {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
-	return c.stopFlag
+	return c.closeFlag
 }
 
-func (c *Connection) stop() {
+func (c *Connection) iclose() {
 	c.mu.Lock()
-	isStoped := c.stopFlag
-	c.stopFlag = true
+	isClosed := c.closeFlag
+	c.closeFlag = true
 	c.mu.Unlock()
 
-	if !isStoped {
+	if !isClosed {
 		c.wsconn.Close()
 		c.outputDone <- struct{}{}
 	}
 }
 
-func (c *Connection) write(m imessage) {
+func (c *Connection) iwrite(m imessage) {
 	if c.closed() {
 		c.s.onError(c, ErrConnClosed)
 		return
@@ -108,15 +108,15 @@ func (c *Connection) write(m imessage) {
 }
 
 func (c *Connection) Close() {
-	c.write(imessage{messageType: websocket.CloseMessage, data: []byte{}})
+	c.iwrite(imessage{messageType: websocket.CloseMessage, data: []byte{}})
 }
 
-func (c *Connection) WriteTextMessage(text []byte) {
-	c.write(imessage{messageType: websocket.TextMessage, data: text})
+func (c *Connection) Write(text []byte) {
+	c.iwrite(imessage{messageType: websocket.TextMessage, data: text})
 }
 
-func (c *Connection) WriteBinaryMessage(buffer []byte) {
-	c.write(imessage{messageType: websocket.BinaryMessage, data: buffer})
+func (c *Connection) WriteBinary(data []byte) {
+	c.iwrite(imessage{messageType: websocket.BinaryMessage, data: data})
 }
 
 func (c *Connection) readLoop() {
@@ -130,7 +130,7 @@ func (c *Connection) readLoop() {
 		}
 		switch t {
 		case websocket.TextMessage:
-			c.s.onTextMessage(c, msg)
+			c.s.onMessage(c, msg)
 		case websocket.BinaryMessage:
 			c.s.onBinaryMessage(c, msg)
 		}
@@ -139,7 +139,7 @@ func (c *Connection) readLoop() {
 
 func (c *Connection) writeLoop() {
 	defer func() {
-		c.stop()
+		c.iclose()
 	}()
 
 	for {

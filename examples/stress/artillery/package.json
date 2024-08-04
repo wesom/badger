@@ -3,8 +3,12 @@
   "version": "1.0.0",
   "description": "stress test",
   "scripts": {
-    "start": "artillery run test.yml"
+    "start": "artillery run --output report.json test.yml",
+    "report": "artillery report --output report.html report.json"
   },
   "author": "",
-  "license": "ISC"
+  "license": "ISC",
+  "dependencies": {
+    "artillery": "^2.0.18"
+  }
 }

@@ -7,22 +7,20 @@ import (
 	"github.com/gorilla/websocket"
 )
 
-type onConnectFunc func(*Connection)
-type onTextMessageFunc func(*Connection, []byte)
-type onBinaryMessageFunc func(*Connection, []byte)
-type onErrorFunc func(*Connection, error)
-type onDisconnectFunc func(*Connection)
+type handleConnectFunc func(*Connection)
+type handleMessageFunc func(*Connection, []byte)
+type handleErrorFunc func(*Connection, error)
 
 type WsGateWay struct {
 	upgrader        *websocket.Upgrader
 	opts            *Options
 	closed          atomic.Bool
 	hub             *hub
-	onConnect       onConnectFunc
-	onTextMessage   onTextMessageFunc
-	onBinaryMessage onBinaryMessageFunc
-	onDisconnect    onDisconnectFunc
-	onError         onErrorFunc
+	onConnect       handleConnectFunc
+	onDisconnect    handleConnectFunc
+	onMessage       handleMessageFunc
+	onBinaryMessage handleMessageFunc
+	onError         handleErrorFunc
 }
 
 func NewWsGateWay(opts ...Option) *WsGateWay {
@@ -36,10 +34,10 @@ func NewWsGateWay(opts ...Option) *WsGateWay {
 		opts:            options,
 		hub:             newHub(),
 		onConnect:       func(*Connection) {},
-		onTextMessage:   func(*Connection, []byte) {},
+		onDisconnect:    func(*Connection) {},
+		onMessage:       func(*Connection, []byte) {},
 		onBinaryMessage: func(*Connection, []byte) {},
 		onError:         func(*Connection, error) {},
-		onDisconnect:    func(*Connection) {},
 	}
 
 	// Set upgrader options
@@ -79,7 +77,7 @@ func (s *WsGateWay) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	conn.readLoop()
 
 	s.hub.del(conn)
-	conn.stop()
+	conn.iclose()
 	s.onDisconnect(conn)
 }
 
@@ -107,8 +105,12 @@ func (s *WsGateWay) OnConnect(f func(*Connection)) {
 	s.onConnect = f
 }
 
-func (s *WsGateWay) OnTextMessage(f func(*Connection, []byte)) {
-	s.onTextMessage = f
+func (s *WsGateWay) OnDisconnect(f func(*Connection)) {
+	s.onDisconnect = f
+}
+
+func (s *WsGateWay) OnMessage(f func(*Connection, []byte)) {
+	s.onMessage = f
 }
 
 func (s *WsGateWay) OnBinaryMessage(f func(*Connection, []byte)) {
@@ -117,8 +119,4 @@ func (s *WsGateWay) OnBinaryMessage(f func(*Connection, []byte)) {
 
 func (s *WsGateWay) OnError(f func(*Connection, error)) {
 	s.onError = f
-}
-
-func (s *WsGateWay) OnDisconnect(f func(*Connection)) {
-	s.onDisconnect = f
 }
