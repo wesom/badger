@@ -1,4 +1,4 @@
-module github.com/wesom/badger/example
+module github.com/wesom/badger/examples
 
 go 1.22.3
 

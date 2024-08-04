@@ -1,0 +1,10 @@
+{
+  "name": "artillery",
+  "version": "1.0.0",
+  "description": "stress test",
+  "scripts": {
+    "start": "artillery run test.yml"
+  },
+  "author": "",
+  "license": "ISC"
+}

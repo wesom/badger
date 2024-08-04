@@ -1,0 +1,20 @@
+config:
+  target: "ws://localhost:8080/ws"
+  processor: './funcs.js'
+  phases:
+    - duration: 60
+      arrivalRate: 20
+
+scenarios:
+  - name: "send text"
+    engine: ws
+    flow:
+      - send:
+          text: "Hello"
+      - think: 1
+  
+  - name: "send binary"
+    engine: ws
+    flow:
+      - functions: 'createRandomScore'
+      - send: '{{ data }}'
