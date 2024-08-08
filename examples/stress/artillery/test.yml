@@ -1,12 +1,14 @@
 config:
   target: "ws://localhost:8080/ws"
   phases:
-    - duration: 30
-      arrivalRate: 5
-    - duration: 60
-      rampTo: 10
     - duration: 120
-      rampTo: 20
+      arrivalCount: 5000
+    # - duration: 30
+    #   arrivalRate: 5
+    # - duration: 60
+    #   rampTo: 10
+    # - duration: 120
+    #   rampTo: 20
 
 scenarios:
   - name: "sendjson"
