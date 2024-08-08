@@ -1,6 +1,6 @@
 module github.com/wesom/badger/examples
 
-go 1.22.3
+go 1.22
 
 replace github.com/wesom/badger => ../
 
